@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "transports": {
+    "mcp": {
+      "kinds": ["image", "video", "audio", "edit", "concat", "upscale"],
+      "models": [
+        "magnific-image-v2",
+        "flux-pro",
+        "kling-2.1",
+        "veo-3",
+        "minimax-hailuo",
+        "magnific-audio-v1"
+      ],
+      "webhooks": false,
+      "analytics": false
+    },
+    "api": {
+      "kinds": ["image", "video", "concat", "upscale"],
+      "models": [
+        "magnific-image-v2",
+        "flux-pro",
+        "kling-2.1",
+        "veo-3"
+      ],
+      "webhooks": true,
+      "analytics": true
+    }
+  },
+  "creditBaseline": {
+    "image": 8,
+    "video": 45,
+    "audio": 6,
+    "edit": 5,
+    "concat": 2,
+    "upscale": 12
+  }
+}

@@ -1,0 +1,133 @@
+import type { PageContext } from "@/types/pipeline";
+
+/**
+ * Thin client over the Anthropic Messages API (/v1/messages).
+ *
+ * Claude is the BRAIN of the pipeline (never the generator). The full page
+ * scope is injected into the system prompt on EVERY call because Claude has no
+ * memory between requests (§4). When no API key is connected the client returns
+ * a local heuristic reply so the MVP stays usable offline — but the request
+ * shape, scope injection and usage accounting are real.
+ */
+
+const API_URL = "https://api.anthropic.com/v1/messages";
+
+export interface ClaudeReply {
+  text: string;
+  inputTokens: number;
+  outputTokens: number;
+  /** Rough cost estimate in USD for the consumption meter. */
+  costUsd: number;
+  /** True when produced by the offline heuristic (no API key). */
+  offline: boolean;
+}
+
+export interface ClaudeMessage {
+  role: "user" | "assistant";
+  content: string;
+}
+
+// Approx. Opus-class pricing per million tokens (USD). Used only for the meter.
+const PRICE_IN_PER_MTOK = 5;
+const PRICE_OUT_PER_MTOK = 25;
+
+export function buildSystemPrompt(ctx: PageContext): string {
+  return [
+    "Eres el Director de Magnific Studio: un asistente de producción narrativa,",
+    "presente pero no invasivo. Actúas SOLO dentro del scope de la página activa.",
+    "",
+    "## Scope de página activa (inyectado en cada request)",
+    `- fase: ${ctx.phase} (${ctx.phaseLabel})`,
+    `- referente_implícito: ${ctx.implicitReferent}`,
+    `- acciones_permitidas: ${ctx.allowedActions.join(", ")}`,
+    `- acciones_bloqueadas: ${ctx.blockedActions.join(", ") || "—"}`,
+    "- objetos_visibles:",
+    "```json",
+    JSON.stringify(ctx.visibleObjects, null, 2),
+    "```",
+    "",
+    "## Reglas",
+    '- Resuelve referencias implícitas con el referente_implícito (ej. "el plano 2" = el plano 2 de la vista activa).',
+    "- Si te piden algo fuera de fase (una acción bloqueada), NO lo ejecutes: redirige con suavidad",
+    "  indicando en qué fase se hace y qué falta para llegar.",
+    "- Sé conciso. No generas imágenes ni vídeo tú mismo: eso lo ejecuta la capa de generación de Magnific.",
+  ].join("\n");
+}
+
+export class AnthropicClient {
+  constructor(
+    private apiKey: string,
+    private model: string,
+  ) {}
+
+  get hasKey(): boolean {
+    return this.apiKey.trim().length > 0;
+  }
+
+  async send(
+    ctx: PageContext,
+    history: ClaudeMessage[],
+    offlineReply: () => string,
+  ): Promise<ClaudeReply> {
+    if (!this.hasKey) {
+      const text = offlineReply();
+      return {
+        text,
+        inputTokens: estimateTokens(JSON.stringify(ctx) + serialize(history)),
+        outputTokens: estimateTokens(text),
+        costUsd: 0,
+        offline: true,
+      };
+    }
+
+    const res = await fetch(API_URL, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-api-key": this.apiKey,
+        "anthropic-version": "2023-06-01",
+        // Allow calls from a browser SPA (MVP). In production, proxy via backend.
+        "anthropic-dangerous-direct-browser-access": "true",
+      },
+      body: JSON.stringify({
+        model: this.model,
+        max_tokens: 1024,
+        system: buildSystemPrompt(ctx),
+        messages: history.map((m) => ({ role: m.role, content: m.content })),
+      }),
+    });
+
+    if (!res.ok) {
+      const detail = await res.text().catch(() => "");
+      throw new Error(`Anthropic API ${res.status}: ${detail.slice(0, 200)}`);
+    }
+
+    const data = (await res.json()) as {
+      content: Array<{ type: string; text?: string }>;
+      usage: { input_tokens: number; output_tokens: number };
+    };
+    const text = data.content
+      .filter((c) => c.type === "text")
+      .map((c) => c.text ?? "")
+      .join("\n");
+    const inputTokens = data.usage.input_tokens;
+    const outputTokens = data.usage.output_tokens;
+    return {
+      text,
+      inputTokens,
+      outputTokens,
+      costUsd:
+        (inputTokens / 1e6) * PRICE_IN_PER_MTOK +
+        (outputTokens / 1e6) * PRICE_OUT_PER_MTOK,
+      offline: false,
+    };
+  }
+}
+
+function estimateTokens(s: string): number {
+  return Math.ceil(s.length / 4);
+}
+
+function serialize(h: ClaudeMessage[]): string {
+  return h.map((m) => m.content).join(" ");
+}
