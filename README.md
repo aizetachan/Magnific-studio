@@ -101,10 +101,43 @@ Flujo: `McpTransport` (navegador) → `POST /api/director/mcp-generate` (proxy �
 backend) → Claude con el **MCP connector** de Anthropic
 (`mcp_servers`, beta `mcp-client-2025-04-04`) ejecuta la herramienta de Magnific
 adecuada (`images_generate`, `video_generate`, `video_concatenate`…) y devuelve
-la URL del asset. Sin `ANTHROPIC_API_KEY`/`MAGNIFIC_MCP_URL` o ante un error, el
-backend devuelve un mock y el frontend sigue funcionando.
+la URL del asset. Sin `ANTHROPIC_API_KEY`/`MAGNIFIC_MCP_URL`, sin cuenta
+conectada, o ante un error, el backend devuelve un mock y el frontend sigue
+funcionando.
 
 `GET /api/director/health` reporta qué está configurado.
+
+#### Conexión por usuario (OAuth 2.0 + PKCE)
+
+Cada usuario conecta **su propia cuenta de Magnific** desde **Ajustes →
+“Conectar mi cuenta de Magnific”**. El backend implementa el flujo de
+autorización del MCP estándar:
+
+1. **Descubrimiento** — `/.well-known/oauth-protected-resource` →
+   `/.well-known/oauth-authorization-server` (con fallback a variables de
+   entorno si el proveedor no expone discovery).
+2. **Registro dinámico de cliente (DCR)** — registra la app automáticamente; o
+   usa `MAGNIFIC_OAUTH_CLIENT_ID/_SECRET` si los defines.
+3. **Authorization Code + PKCE** — redirige al login de Magnific y, en el
+   callback, canjea el código por `access_token` + `refresh_token`.
+4. Los tokens se guardan **por sesión** (cookie `msid`, en memoria en el MVP) y
+   se **refrescan** solos al caducar. El `mcp-generate` usa el token del usuario
+   activo.
+
+Rutas: `GET /auth/login`, `GET /auth/callback`, `GET /auth/status`,
+`POST /auth/logout` (todas bajo `/api/director`). El `redirect_uri` es
+`${APP_ORIGIN}/api/director/auth/callback` (configurable con `APP_ORIGIN`).
+
+> Prueba de validación desde el IDE:
+> ```bash
+> # terminal 1
+> ANTHROPIC_API_KEY=sk-ant-... MAGNIFIC_MCP_URL=https://mcp.magnific.com npm run server
+> # terminal 2
+> VITE_MAGNIFIC_LIVE=true npm run dev
+> ```
+> Abre Ajustes → **Conectar mi cuenta de Magnific** → autoriza → vuelves con
+> “✓ Cuenta conectada”. A partir de ahí, Storyboard/Producción generan de verdad
+> vía MCP con tu cuenta.
 
 ## Diseño
 

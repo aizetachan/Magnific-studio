@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useStore } from "@/state/ProjectStore";
 import { AnthropicClient } from "@/director/AnthropicClient";
 import { config } from "@/config";
@@ -122,6 +122,12 @@ export function SettingsPage() {
             MCP (OAuth) es la capa por defecto. La API REST Business habilita
             webhooks y la Analytics API para medición real.
           </p>
+
+          <MagnificAuth />
+
+          <label className="card__label" style={{ marginTop: 14 }}>
+            API REST Business (opcional)
+          </label>
           <input
             type="password"
             placeholder="API key de Magnific Business"
@@ -251,6 +257,90 @@ export function SettingsPage() {
           </div>
         </div>
       </section>
+    </div>
+  );
+}
+
+/**
+ * Per-user Magnific account connection via the Director backend's OAuth flow
+ * (discovery + dynamic client registration + PKCE). Each user connects their
+ * own account; the backend holds the tokens and runs the MCP loop server-side.
+ */
+function MagnificAuth() {
+  const [connected, setConnected] = useState<boolean | null>(null);
+  const [configured, setConfigured] = useState(true);
+  const [msg, setMsg] = useState<string | null>(null);
+  const base = config.directorBase;
+
+  const refresh = async () => {
+    try {
+      const res = await fetch(`${base}/auth/status`, { credentials: "include" });
+      const data = (await res.json()) as { connected: boolean; configured: boolean };
+      setConnected(data.connected);
+      setConfigured(data.configured);
+    } catch {
+      setConnected(false);
+      setConfigured(false);
+    }
+  };
+
+  useEffect(() => {
+    // Surface the OAuth return and clean the URL.
+    const params = new URLSearchParams(window.location.search);
+    const status = params.get("magnific");
+    if (status === "connected") setMsg("✓ Cuenta de Magnific conectada.");
+    else if (status === "unconfigured")
+      setMsg("El backend no tiene MAGNIFIC_MCP_URL configurado.");
+    else if (status === "error")
+      setMsg(`No se pudo conectar: ${params.get("detail") ?? "error"}`);
+    if (status) {
+      params.delete("magnific");
+      params.delete("detail");
+      const qs = params.toString();
+      window.history.replaceState({}, "", window.location.pathname + (qs ? `?${qs}` : ""));
+    }
+    void refresh();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const logout = async () => {
+    await fetch(`${base}/auth/logout`, { method: "POST", credentials: "include" });
+    void refresh();
+  };
+
+  return (
+    <div className="oauth">
+      <div className="kf__row">
+        <span className="card__label" style={{ margin: 0 }}>
+          Mi cuenta de Magnific (MCP · OAuth)
+        </span>
+        <span className={`conn conn--${connected ? "ok" : "untested"}`}>
+          {connected === null
+            ? "…"
+            : connected
+              ? "✓ Conectada"
+              : "No conectada"}
+        </span>
+      </div>
+      <div className="kf__row" style={{ marginTop: 8 }}>
+        {connected ? (
+          <button className="mini" onClick={logout}>
+            Desconectar
+          </button>
+        ) : (
+          <a
+            className="gate"
+            style={{ height: 36, display: "inline-flex", alignItems: "center" }}
+            href={`${base}/auth/login`}
+          >
+            Conectar mi cuenta de Magnific
+          </a>
+        )}
+        {!configured ? (
+          <span className="muted small">backend sin MAGNIFIC_MCP_URL</span>
+        ) : null}
+      </div>
+      {msg ? <p className="muted small">{msg}</p> : null}
     </div>
   );
 }
