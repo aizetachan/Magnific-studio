@@ -1,17 +1,14 @@
 import { useState } from "react";
 import { useStore } from "@/state/ProjectStore";
 import { AnthropicClient } from "@/director/AnthropicClient";
+import { config } from "@/config";
 import {
   PHASE_LABELS,
   creditsByPhase,
   totals,
 } from "@/state/consumption";
 
-const MODELS = [
-  "claude-opus-4-8",
-  "claude-sonnet-4-6",
-  "claude-haiku-4-5-20251001",
-];
+const MODELS = ["claude-opus-4-8", "claude-sonnet-4-6", "claude-haiku-4-5"];
 
 /**
  * Settings (§5.3) — connect your own Anthropic API key, see exactly what you
@@ -125,6 +122,17 @@ export function SettingsPage() {
             MCP (OAuth) es la capa por defecto. La API REST Business habilita
             webhooks y la Analytics API para medición real.
           </p>
+          <input
+            type="password"
+            placeholder="API key de Magnific Business"
+            value={s.magnificApiKey}
+            onChange={(e) =>
+              update((d) => {
+                d.settings.magnificApiKey = e.target.value;
+                d.settings.magnificApiConnected = e.target.value.trim() !== "";
+              })
+            }
+          />
           <label className="toggle">
             <input
               type="checkbox"
@@ -138,6 +146,16 @@ export function SettingsPage() {
             />
             ApiTransport (Business) conectado
           </label>
+          <p className="muted small">
+            Generación{" "}
+            {config.magnificLive ? (
+              <b className="ok">en vivo</b>
+            ) : (
+              <b>simulada</b>
+            )}{" "}
+            · base {config.magnificApiBase}. Para llamadas reales:{" "}
+            <code>VITE_MAGNIFIC_LIVE=true</code> + API key.
+          </p>
           <ul className="meta-list">
             <li>
               <span>McpTransport</span>

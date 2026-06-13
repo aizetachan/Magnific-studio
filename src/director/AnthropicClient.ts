@@ -1,4 +1,5 @@
 import type { PageContext } from "@/types/pipeline";
+import { anthropicIsDirect, config } from "@/config";
 
 /**
  * Thin client over the Anthropic Messages API (/v1/messages).
@@ -8,9 +9,14 @@ import type { PageContext } from "@/types/pipeline";
  * memory between requests (§4). When no API key is connected the client returns
  * a local heuristic reply so the MVP stays usable offline — but the request
  * shape, scope injection and usage accounting are real.
+ *
+ * By default the request goes through the dev-server proxy (`/api/anthropic`),
+ * so the call is same-origin and needs no CORS workaround. Point
+ * VITE_ANTHROPIC_BASE at https://api.anthropic.com to call the API directly
+ * (the direct-browser-access header is then sent automatically).
  */
 
-const API_URL = "https://api.anthropic.com/v1/messages";
+const API_URL = `${config.anthropicBase}/v1/messages`;
 
 export interface ClaudeReply {
   text: string;
@@ -80,15 +86,19 @@ export class AnthropicClient {
       };
     }
 
+    const headers: Record<string, string> = {
+      "content-type": "application/json",
+      "x-api-key": this.apiKey,
+      "anthropic-version": "2023-06-01",
+    };
+    // Only needed when calling the public API cross-origin (no proxy).
+    if (anthropicIsDirect) {
+      headers["anthropic-dangerous-direct-browser-access"] = "true";
+    }
+
     const res = await fetch(API_URL, {
       method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "x-api-key": this.apiKey,
-        "anthropic-version": "2023-06-01",
-        // Allow calls from a browser SPA (MVP). In production, proxy via backend.
-        "anthropic-dangerous-direct-browser-access": "true",
-      },
+      headers,
       body: JSON.stringify({
         model: this.model,
         max_tokens: 1024,

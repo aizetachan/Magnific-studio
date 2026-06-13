@@ -39,6 +39,11 @@ export class GenerationBlock {
     this.api.setConnected(connected);
   }
 
+  /** Provide the Magnific REST API key to the API transport (live calls). */
+  setMagnificAuth(apiKey: string) {
+    this.api.setAuth(apiKey);
+  }
+
   /** Add or replace a transport at runtime (interchangeable by design). */
   registerTransport(t: GenerationTransport) {
     this.transports[t.id] = t;

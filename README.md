@@ -18,19 +18,67 @@ PROYECTO
 └─ ⚙️  Ajustes       API key de Claude, consumo, modelos, biblioteca
 ```
 
-## Arrancar
+## Arrancar (incluido tras clonar en otra máquina/IDE)
 
 ```bash
+git clone <repo> && cd Magnific-studio
 npm install
 npm run dev        # http://localhost:5173
 npm run build      # typecheck + build de producción
 npm test           # tests del Router y del orquestador
 ```
 
-Sin API key, la app funciona en **modo offline** (jobs simulados + director
-heurístico). En **Ajustes** puedes conectar tu propia API key de Anthropic: a
-partir de ahí el panel de Director llama de verdad a `/v1/messages` con el scope
-de la página inyectado en cada request.
+Recién clonado y **sin configurar nada**, la app arranca y es navegable de
+principio a fin: director en **modo offline** (heurístico) y generación
+**simulada** (jobs mockeados con preview). Nada que instalar aparte de
+`npm install`.
+
+## Clonar y conectar las APIs (Claude + Magnific)
+
+Las claves se introducen en **Ajustes** (solo en memoria de sesión, nunca se
+exportan) o se precargan desde un `.env.local` (copia `.env.example`). No hay
+nada hardcodeado.
+
+### Claude (Anthropic) — funciona ya
+
+1. `npm run dev` y abre Ajustes.
+2. Pega tu API key de Anthropic y pulsa **Probar conexión**.
+3. El panel de Director llama de verdad a `/v1/messages` con el scope de página
+   inyectado en cada request.
+
+El servidor de desarrollo de Vite **proxia** `/api/anthropic` →
+`https://api.anthropic.com` (ver `vite.config.ts`), así que la llamada es
+*same-origin* y no hay problemas de CORS ni necesidad del header
+`anthropic-dangerous-direct-browser-access`. Para llamar directo a la API
+pública, pon `VITE_ANTHROPIC_BASE=https://api.anthropic.com` (entonces el header
+se envía solo). En producción, sustituye el proxy por tu backend.
+
+### Magnific (generación) — listo para conectar
+
+- **MCP (OAuth)** es la capa conversacional por defecto; el proxy `/api/mcp` la
+  reenvía a `https://mcp.magnific.com`. La sesión MCP real (OAuth) se resuelve
+  en el backend en producción.
+- **API REST Business** (`ApiTransport`) habilita ejecución determinista,
+  webhooks y la Analytics API para medición real.
+
+Para activar **generación real** (en vez de simulada):
+
+```bash
+cp .env.example .env.local
+# en .env.local:
+VITE_MAGNIFIC_LIVE=true
+VITE_MAGNIFIC_API_KEY=mag-...           # o ponla en Ajustes
+VITE_MAGNIFIC_API_TARGET=https://api.magnific.ai   # tu host real
+VITE_MAGNIFIC_GENERATE_PATH=/v1/generations         # tu endpoint real
+```
+
+Con esto, `ApiTransport.execute()` hace `POST → task_id → poll` real contra la
+base configurada (vía el proxy `/api/magnific`). Si la llamada falla por
+configuración, **cae con gracia a simulación** y lo indica, para no romper el
+flujo. Las rutas y el host son configurables sin tocar código: ajusta el
+`CapabilityMap` (`src/generation/capabilityMap.config.json`) y el `.env`.
+
+> Variables disponibles y sus valores por defecto: ver `.env.example`.
 
 ## Principios rectores (no negociables)
 

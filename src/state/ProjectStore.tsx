@@ -2,6 +2,7 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -52,6 +53,16 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   }
   const generation = generationRef.current;
 
+  // Keep the generation layer's transports in sync with Settings.
+  useEffect(() => {
+    generation.setApiConnected(project.settings.magnificApiConnected);
+    generation.setMagnificAuth(project.settings.magnificApiKey);
+  }, [
+    generation,
+    project.settings.magnificApiConnected,
+    project.settings.magnificApiKey,
+  ]);
+
   const update = useCallback((mut: (draft: Project) => void) => {
     setProject((prev) => {
       const draft = structuredClone(prev) as Project;
@@ -70,21 +81,22 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   );
 
   const exportJson = useCallback(() => {
-    // Never export the API key.
+    // Never export secrets.
     const safe = structuredClone(project) as Project;
     safe.settings.anthropicApiKey = "";
+    safe.settings.magnificApiKey = "";
     return JSON.stringify(safe, null, 2);
   }, [project]);
 
   const importJson = useCallback(
     (json: string) => {
       const parsed = JSON.parse(json) as Project;
-      // Keep the live API key from the current session.
+      // Keep the live keys from the current session.
       parsed.settings.anthropicApiKey = project.settings.anthropicApiKey;
+      parsed.settings.magnificApiKey = project.settings.magnificApiKey;
       setProject(parsed);
-      generation.setApiConnected(parsed.settings.magnificApiConnected);
     },
-    [project.settings.anthropicApiKey, generation],
+    [project.settings.anthropicApiKey, project.settings.magnificApiKey],
   );
 
   const value = useMemo<StoreValue>(

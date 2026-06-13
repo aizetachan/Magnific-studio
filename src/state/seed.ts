@@ -1,4 +1,5 @@
 import type { Project } from "@/types/project";
+import { config } from "@/config";
 
 let n = 0;
 export const uid = (p = "id") => `${p}_${Date.now().toString(36)}_${(n++).toString(36)}`;
@@ -100,9 +101,10 @@ export function createSeedProject(): Project {
       { id: uid("lib"), type: "location", name: "Museo nocturno" },
     ],
     settings: {
-      anthropicApiKey: "",
-      directorModel: "claude-opus-4-8",
-      magnificApiConnected: false,
+      anthropicApiKey: config.seed.anthropicApiKey,
+      directorModel: config.seed.directorModel,
+      magnificApiKey: config.seed.magnificApiKey,
+      magnificApiConnected: config.seed.magnificApiConnected,
       connectionTested: "untested",
     },
     gates: {

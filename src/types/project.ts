@@ -142,6 +142,8 @@ export interface Settings {
   anthropicApiKey: string;
   /** Default model for director tasks (configurable). */
   directorModel: string;
+  /** User's Magnific Business REST API key. In memory only; never exported. */
+  magnificApiKey: string;
   /** Whether the Magnific Business REST API (ApiTransport) is connected. */
   magnificApiConnected: boolean;
   connectionTested: "untested" | "ok" | "failed";
