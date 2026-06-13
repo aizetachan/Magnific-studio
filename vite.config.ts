@@ -13,6 +13,8 @@ export default defineConfig(({ mode }) => {
   const anthropicTarget = "https://api.anthropic.com";
   const magnificApiTarget = env.VITE_MAGNIFIC_API_TARGET ?? "https://api.magnific.ai";
   const magnificMcpTarget = env.VITE_MAGNIFIC_MCP_TARGET ?? "https://mcp.magnific.com";
+  // Director backend (Claude↔MCP orchestration), run with `npm run server`.
+  const directorTarget = env.VITE_DIRECTOR_TARGET ?? "http://localhost:8787";
 
   return {
     plugins: [react()],
@@ -38,6 +40,11 @@ export default defineConfig(({ mode }) => {
           target: magnificMcpTarget,
           changeOrigin: true,
           rewrite: (p) => p.replace(/^\/api\/mcp/, ""),
+        },
+        // Director backend keeps its /api/director prefix (matches server routes).
+        "/api/director": {
+          target: directorTarget,
+          changeOrigin: true,
         },
       },
     },

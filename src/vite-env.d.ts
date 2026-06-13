@@ -24,6 +24,11 @@ interface ImportMetaEnv {
   readonly VITE_MAGNIFIC_LIVE?: string;
   /** Path appended to the API base to create a generation job. */
   readonly VITE_MAGNIFIC_GENERATE_PATH?: string;
+
+  /** Director backend base (Claude↔MCP orchestration). Default "/api/director". */
+  readonly VITE_DIRECTOR_BASE?: string;
+  /** Upstream the dev proxy forwards "/api/director" to. */
+  readonly VITE_DIRECTOR_TARGET?: string;
 }
 
 interface ImportMeta {

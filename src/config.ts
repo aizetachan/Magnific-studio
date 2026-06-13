@@ -23,6 +23,8 @@ export const config = {
   magnificApiBase: env.VITE_MAGNIFIC_API_BASE ?? "/api/magnific",
   /** Magnific MCP base. Proxy path by default. */
   magnificMcpBase: env.VITE_MAGNIFIC_MCP_BASE ?? "/api/mcp",
+  /** Director backend base (Claude↔MCP orchestration). Proxy path by default. */
+  directorBase: env.VITE_DIRECTOR_BASE ?? "/api/director",
   /** Path appended to the API base to start a generation job. */
   magnificGeneratePath: env.VITE_MAGNIFIC_GENERATE_PATH ?? "/v1/generations",
   /** When false (default) generation is simulated; when true, real calls run. */

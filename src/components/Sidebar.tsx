@@ -1,6 +1,7 @@
 import type { PipelineBlock } from "@/types/pipeline";
 import type { GateState, PhaseId } from "@/types/project";
 import { BLOCK_ORDER } from "@/blocks";
+import { useStore } from "@/state/ProjectStore";
 
 const GATE_HINT: Record<GateState, string> = {
   locked: "Bloqueada",
@@ -10,8 +11,9 @@ const GATE_HINT: Record<GateState, string> = {
 };
 
 /**
- * Left sidebar: the project and its phases as navigable pages (not nodes).
- * The active phase is highlighted; not-yet-validated phases appear locked/dim.
+ * Left sidebar — Magnific design language: floating rounded panel (panel-4),
+ * ghost hovers, per-phase category color on the icon box, pink create button.
+ * Wider than Magnific's 72px icon rail because Studio navigates named phases.
  */
 export function Sidebar({
   projectName,
@@ -28,18 +30,30 @@ export function Sidebar({
   onSelectPhase: (p: PhaseId) => void;
   onSelectSettings: () => void;
 }) {
+  const { newProject } = useStore();
+
   return (
     <nav className="sidebar">
       <div className="sidebar__brand">
         <div className="sidebar__logo">M</div>
-        <div>
+        <div className="sidebar__brandtext">
           <div className="sidebar__suite">Magnific</div>
           <strong className="sidebar__app">Studio</strong>
         </div>
+        <button
+          className="sidebar__create"
+          title="Nuevo proyecto"
+          onClick={() => {
+            if (confirm("¿Empezar un proyecto nuevo? Se perderá lo no exportado."))
+              newProject();
+          }}
+        >
+          +
+        </button>
       </div>
 
       <div className="sidebar__project">
-        <span className="muted small">PROYECTO</span>
+        <span className="sidebar__plabel">PROYECTO</span>
         <div className="sidebar__projname">“{projectName}”</div>
       </div>
 
@@ -59,26 +73,26 @@ export function Sidebar({
                 title={GATE_HINT[gate]}
                 onClick={() => onSelectPhase(id)}
               >
-                <span className="navitem__icon">{block.icon}</span>
+                <span className={`navitem__icon cat-${id}`}>{block.icon}</span>
                 <span className="navitem__label">{block.label}</span>
-                <span className={`navitem__gate gate-dot gate-dot--${gate}`} />
+                <span className={`gate-dot gate-dot--${gate}`} />
               </button>
             </li>
           );
         })}
-        <li className="sidebar__sep" />
-        <li>
-          <button
-            className={`navitem ${showSettings ? "navitem--active" : ""}`}
-            onClick={onSelectSettings}
-          >
-            <span className="navitem__icon">⚙️</span>
-            <span className="navitem__label">Ajustes</span>
-          </button>
-        </li>
       </ul>
 
-      <div className="sidebar__foot muted small">
+      <div className="sidebar__sep" />
+
+      <button
+        className={`navitem ${showSettings ? "navitem--active" : ""}`}
+        onClick={onSelectSettings}
+      >
+        <span className="navitem__icon cat-settings">⚙️</span>
+        <span className="navitem__label">Ajustes</span>
+      </button>
+
+      <div className="sidebar__foot">
         Pipeline secuencial con gates. Vuelve atrás para iterar.
       </div>
     </nav>

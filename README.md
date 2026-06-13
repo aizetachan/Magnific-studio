@@ -80,6 +80,42 @@ flujo. Las rutas y el host son configurables sin tocar código: ajusta el
 
 > Variables disponibles y sus valores por defecto: ver `.env.example`.
 
+### Backend del Director — Claude orquesta el MCP (server-side)
+
+La vía MCP de verdad (Claude como cerebro llamando a las herramientas del MCP de
+Magnific) corre en un **backend** sin dependencias (`server/index.mjs`), porque
+la sesión OAuth/MCP y las claves no deben vivir en el navegador.
+
+```bash
+# terminal 1 — backend del Director
+ANTHROPIC_API_KEY=sk-ant-... \
+MAGNIFIC_MCP_URL=https://mcp.magnific.com \
+MAGNIFIC_MCP_TOKEN=... \
+npm run server                 # escucha en :8787
+
+# terminal 2 — frontend
+VITE_MAGNIFIC_LIVE=true npm run dev
+```
+
+Flujo: `McpTransport` (navegador) → `POST /api/director/mcp-generate` (proxy →
+backend) → Claude con el **MCP connector** de Anthropic
+(`mcp_servers`, beta `mcp-client-2025-04-04`) ejecuta la herramienta de Magnific
+adecuada (`images_generate`, `video_generate`, `video_concatenate`…) y devuelve
+la URL del asset. Sin `ANTHROPIC_API_KEY`/`MAGNIFIC_MCP_URL` o ante un error, el
+backend devuelve un mock y el frontend sigue funcionando.
+
+`GET /api/director/health` reporta qué está configurado.
+
+## Diseño
+
+La UI sigue el **sistema de diseño de Magnific**: capas de panel oscuras
+(`#101010 → #161616 → #1a1a1a → #1f1f1f`), paneles flotantes con radio 16px,
+hovers *ghost* (blancos translúcidos), acento **rosa** reservado solo para crear,
+**azul primario** para los CTAs (gates), color por categoría en cada fase
+(Historia lila, Guion coral, Storyboard azul, Producción verde, Entrega cian) y
+tipografía **Geist** (`@fontsource-variable/geist`). El sidebar es más ancho que
+el rail de 72px de Magnific porque Studio navega fases con nombre.
+
 ## Principios rectores (no negociables)
 
 1. **No es un canvas.** Organización lineal por páginas/fases vía sidebar.

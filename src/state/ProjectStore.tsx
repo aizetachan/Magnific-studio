@@ -37,6 +37,8 @@ export interface StoreValue {
   generation: GenerationBlock;
   exportJson: () => string;
   importJson: (json: string) => void;
+  /** Start a fresh project (resets to seed). */
+  newProject: () => void;
 }
 
 const Ctx = createContext<StoreValue | null>(null);
@@ -99,6 +101,12 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     [project.settings.anthropicApiKey, project.settings.magnificApiKey],
   );
 
+  const newProject = useCallback(() => {
+    setProject(createSeedProject());
+    setActivePhase("story");
+    setActiveSceneId(null);
+  }, []);
+
   const value = useMemo<StoreValue>(
     () => ({
       project,
@@ -111,6 +119,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       generation,
       exportJson,
       importJson,
+      newProject,
     }),
     [
       project,
@@ -121,6 +130,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       generation,
       exportJson,
       importJson,
+      newProject,
     ],
   );
 
