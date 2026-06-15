@@ -140,8 +140,8 @@ export function Sidebar({
                 title={GATE_HINT[gate]}
                 onClick={() => onSelectPhase(id)}
               >
-                <span className={`navitem__icon cat-${id}`}>
-                  <PhaseIcon size={18} />
+                <span className="navitem__icon">
+                  <PhaseIcon size={14} />
                 </span>
                 <span className="navitem__label">{block.label}</span>
                 <span className={`gate-dot gate-dot--${gate}`} />
@@ -157,8 +157,8 @@ export function Sidebar({
         className={`navitem ${showSettings ? "navitem--active" : ""}`}
         onClick={onSelectSettings}
       >
-        <span className="navitem__icon cat-settings">
-          <IconSettings size={18} />
+        <span className="navitem__icon">
+          <IconSettings size={14} />
         </span>
         <span className="navitem__label">Ajustes</span>
       </button>

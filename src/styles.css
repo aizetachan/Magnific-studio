@@ -90,7 +90,11 @@ code { background: var(--surface-2); border: 1px solid var(--border-1); border-r
 /* Page content sits in its own rounded panel (sidebar color), no divider above. */
 .content-panel {
   background: var(--panel-4); border-radius: var(--radius-2xl);
-  padding: 24px; min-height: 100%;
+  /* No horizontal padding: page content runs full width; the header re-adds its
+     own side padding so the title/subtitle stay aligned where they were. */
+  padding: 24px 0; min-height: 100%;
+  /* Own stacking context so timeline z-indexes never escape over the chat. */
+  position: relative; z-index: 0;
 }
 
 /* Sidebar — floating panel-4 */
@@ -109,7 +113,8 @@ code { background: var(--surface-2); border: 1px solid var(--border-1); border-r
 .sidebar__app { font-size: 17px; font-family: var(--font-display); font-weight: 500; }
 .sidebar__create {
   width: 32px; height: 32px; border-radius: var(--radius-lg); border: none;
-  background: var(--emphasis-0); color: var(--panel-0); font-size: 20px; line-height: 1; font-weight: 500;
+  background: var(--emphasis-0); color: var(--panel-0); line-height: 1; font-weight: 500;
+  display: inline-flex; align-items: center; justify-content: center; gap: 0; padding: 0;
 }
 .sidebar__create:hover { background: var(--emphasis-1); }
 .sidebar__create:active { background: var(--emphasis-2); }
@@ -126,21 +131,18 @@ code { background: var(--surface-2); border: 1px solid var(--border-1); border-r
 .navitem {
   width: 100%; display: flex; align-items: center; gap: 10px;
   background: var(--ghost-0, transparent); border: none; color: var(--fg-0);
-  padding: 6px 8px; border-radius: var(--radius-lg); text-align: left;
+  /* No vertical padding: the 32px icon wrapper sets the row height (matches the
+     reference). Horizontal padding only. */
+  padding: 0 8px; border-radius: var(--radius-lg); text-align: left;
 }
 .navitem:hover:not(:disabled) { background: var(--ghost-1); }
 .navitem--active { background: var(--ghost-2); }
 .navitem--locked { opacity: 0.4; }
+/* Icon wrapper: 32×32, always visible, NO colored background (matches the app). */
 .navitem__icon {
   width: 32px; height: 32px; border-radius: var(--radius-lg); display: grid; place-items: center;
-  font-size: 16px; flex-shrink: 0;
+  flex-shrink: 0;
 }
-.cat-story { background: #9c82e51a; }
-.cat-script { background: #cc7e801a; }
-.cat-storyboard { background: #6f8bf71a; }
-.cat-production { background: #17cb8d1a; }
-.cat-delivery { background: #29d4cf1a; }
-.cat-settings { background: #fafafa1a; }
 .navitem__label { flex: 1; font-size: 14px; font-weight: 500; }
 .gate-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--fg-4); }
 .gate-dot--in_progress { background: var(--warn); }
@@ -180,7 +182,9 @@ code { background: var(--surface-2); border: 1px solid var(--border-1); border-r
 .mini:hover { background: var(--surface-3); }
 
 /* Pages */
-.page { max-width: 1120px; }
+/* Lateral padding lives on the CONTENT container (the general panel keeps only
+   vertical padding), so header and body stay aligned and inset together. */
+.page { max-width: 1120px; padding: 0 24px; }
 .page__head { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; margin-bottom: 20px; }
 .page__head h1 { margin: 0 0 4px; font-size: 28px; font-family: var(--font-display); font-weight: 500; }
 .page__head p { margin: 0; }
@@ -579,7 +583,7 @@ code { background: var(--surface-2); border: 1px solid var(--border-1); border-r
 .dot--magnific { background: var(--cat-delivery); }
 
 /* Director — spotlight bar */
-.director { position: fixed; left: 264px; right: 16px; bottom: 16px; pointer-events: none; }
+.director { position: fixed; left: 264px; right: 16px; bottom: 16px; pointer-events: none; z-index: 60; }
 .director > * { pointer-events: auto; }
 .director__bar {
   display: flex; gap: 8px; align-items: center; background: var(--panel-4);
@@ -607,7 +611,7 @@ code { background: var(--surface-2); border: 1px solid var(--border-1); border-r
 .director__dismiss { margin-left: auto; background: transparent; border: none; color: var(--fg-4); }
 
 /* Director panel */
-.dpanel { position: fixed; top: 8px; right: 8px; bottom: 8px; width: 380px; background: var(--panel-4); border-radius: var(--radius-2xl); z-index: 20; display: flex; flex-direction: column; box-shadow: -12px 0 50px rgba(0,0,0,0.55); overflow: hidden; }
+.dpanel { position: fixed; top: 8px; right: 8px; bottom: 8px; width: 380px; background: var(--panel-4); border-radius: var(--radius-2xl); z-index: 60; display: flex; flex-direction: column; box-shadow: -12px 0 50px rgba(0,0,0,0.55); overflow: hidden; }
 .dpanel__head { display: flex; align-items: center; justify-content: space-between; padding: 16px; border-bottom: 1px solid var(--border-1); }
 .dpanel__head button { background: transparent; border: none; color: var(--fg-4); font-size: 16px; }
 .dpanel__log { flex: 1; overflow: auto; padding: 16px; display: flex; flex-direction: column; gap: 10px; }
