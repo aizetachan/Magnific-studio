@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { IconCheck, IconSettings, IconX } from "@tabler/icons-react";
 import { useStore } from "@/state/ProjectStore";
 import { AnthropicClient } from "@/director/AnthropicClient";
 import { config } from "@/config";
@@ -16,17 +17,20 @@ const MODELS = ["claude-opus-4-8", "claude-sonnet-4-6", "claude-haiku-4-5"];
  * shared library. The API key lives only in memory and is never exported.
  */
 export function SettingsPage() {
-  const { project, update, generation } = useStore();
+  const { project, update } = useStore();
   const s = project.settings;
   const t = totals(project);
   const byPhase = creditsByPhase(project);
   const [testing, setTesting] = useState(false);
+  const [connError, setConnError] = useState<string | null>(null);
 
   const testConnection = async () => {
     setTesting(true);
+    setConnError(null);
     try {
       const client = new AnthropicClient(s.anthropicApiKey, s.directorModel);
       if (!client.hasKey) {
+        setConnError("Falta la API key.");
         update((d) => {
           d.settings.connectionTested = "failed";
         });
@@ -47,7 +51,8 @@ export function SettingsPage() {
       update((d) => {
         d.settings.connectionTested = "ok";
       });
-    } catch {
+    } catch (e) {
+      setConnError(e instanceof Error ? e.message : String(e));
       update((d) => {
         d.settings.connectionTested = "failed";
       });
@@ -56,11 +61,21 @@ export function SettingsPage() {
     }
   };
 
+  // Auto-validate the Claude key as soon as it's entered/changed (no need to
+  // press the button), so the connection status is always shown visually.
+  useEffect(() => {
+    if (s.anthropicApiKey && s.connectionTested === "untested") {
+      const id = setTimeout(() => void testConnection(), 600);
+      return () => clearTimeout(id);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [s.anthropicApiKey, s.connectionTested]);
+
   return (
     <div className="page">
       <header className="page__head">
         <div>
-          <h1>⚙️ Ajustes</h1>
+          <h1><IconSettings size={24} /> Ajustes</h1>
           <p className="muted">
             Conecta tu cuenta y mira exactamente lo que consumes.
           </p>
@@ -105,73 +120,65 @@ export function SettingsPage() {
               {testing ? "Probando…" : "Probar conexión"}
             </button>
             <span
-              className={`conn conn--${s.connectionTested}`}
+              className={`conn conn--${testing ? "untested" : s.connectionTested}`}
             >
-              {s.connectionTested === "ok"
-                ? "✓ Conectado"
-                : s.connectionTested === "failed"
-                  ? "✗ Sin conexión (modo offline)"
-                  : "Sin probar"}
+              {testing ? (
+                "Validando…"
+              ) : s.connectionTested === "ok" ? (
+                <>
+                  <IconCheck size={14} /> Claude conectado
+                </>
+              ) : s.connectionTested === "failed" ? (
+                <>
+                  <IconX size={14} /> Sin conexión
+                </>
+              ) : (
+                "Sin probar"
+              )}
             </span>
           </div>
+          {connError && s.connectionTested === "failed" ? (
+            <p className="muted small" style={{ color: "var(--err, #d05656)" }}>
+              {connError.includes("401") || /x-api-key/i.test(connError)
+                ? "La API key no es válida. Revísala (sin espacios) en console.anthropic.com."
+                : /404|not_found|model/i.test(connError)
+                  ? `El modelo "${s.directorModel}" no está disponible en tu cuenta. Prueba otro modelo.`
+                  : connError}
+            </p>
+          ) : null}
         </div>
 
         <div className="card">
           <label className="card__label">Magnific (generación)</label>
           <p className="muted small">
-            MCP (OAuth) es la capa por defecto. La API REST Business habilita
-            webhooks y la Analytics API para medición real.
+            Conecta tu cuenta de Magnific por <b>MCP (OAuth)</b>: la generación
+            usa tus propios créditos. Es el camino principal y recomendado.
           </p>
 
           <MagnificAuth />
 
-          <label className="card__label" style={{ marginTop: 14 }}>
-            API REST Business (opcional)
-          </label>
-          <input
-            type="password"
-            placeholder="API key de Magnific Business"
-            value={s.magnificApiKey}
-            onChange={(e) =>
-              update((d) => {
-                d.settings.magnificApiKey = e.target.value;
-                d.settings.magnificApiConnected = e.target.value.trim() !== "";
-              })
-            }
-          />
-          <label className="toggle">
-            <input
-              type="checkbox"
-              checked={s.magnificApiConnected}
-              onChange={(e) => {
-                update((d) => {
-                  d.settings.magnificApiConnected = e.target.checked;
-                });
-                generation.setApiConnected(e.target.checked);
-              }}
-            />
-            ApiTransport (Business) conectado
-          </label>
-          <p className="muted small">
+          <p className="muted small" style={{ marginTop: 14 }}>
             Generación{" "}
             {config.magnificLive ? (
               <b className="ok">en vivo</b>
             ) : (
               <b>simulada</b>
-            )}{" "}
-            · base {config.magnificApiBase}. Para llamadas reales:{" "}
-            <code>VITE_MAGNIFIC_LIVE=true</code> + API key.
+            )}
+            . El backend ejecuta las herramientas del MCP de Magnific con tu
+            sesión OAuth y descarga cada resultado a este equipo.
+            {config.magnificLive ? null : (
+              <>
+                {" "}
+                Para llamadas reales: arranca el server con{" "}
+                <code>MAGNIFIC_MCP_URL=https://mcp.magnific.com</code> y la app
+                con <code>VITE_MAGNIFIC_LIVE=true</code>.
+              </>
+            )}
           </p>
           <ul className="meta-list">
             <li>
               <span>McpTransport</span>
               <b className="ok">sano</b>
-            </li>
-            <li>
-              <span>ApiTransport</span>
-              <b className={s.magnificApiConnected ? "ok" : "off"}>
-                {s.magnificApiConnected ? "sano" : "desconectado"}
-              </b>
             </li>
           </ul>
         </div>
@@ -266,10 +273,17 @@ export function SettingsPage() {
  * (discovery + dynamic client registration + PKCE). Each user connects their
  * own account; the backend holds the tokens and runs the MCP loop server-side.
  */
+interface Account {
+  plan?: { tier?: string; productName?: string; isUnlimitedMode?: boolean };
+  credits?: { available?: number; totalPlan?: number; spent?: number };
+}
+
 function MagnificAuth() {
   const [connected, setConnected] = useState<boolean | null>(null);
   const [configured, setConfigured] = useState(true);
   const [msg, setMsg] = useState<string | null>(null);
+  const [connecting, setConnecting] = useState(false);
+  const [account, setAccount] = useState<Account | null>(null);
   const base = config.directorBase;
 
   const refresh = async () => {
@@ -278,6 +292,12 @@ function MagnificAuth() {
       const data = (await res.json()) as { connected: boolean; configured: boolean };
       setConnected(data.connected);
       setConfigured(data.configured);
+      if (data.connected) {
+        fetch(`${base}/account`, { credentials: "include" })
+          .then((r) => r.json())
+          .then((a) => a.ok && setAccount(a))
+          .catch(() => {});
+      }
     } catch {
       setConnected(false);
       setConfigured(false);
@@ -288,7 +308,7 @@ function MagnificAuth() {
     // Surface the OAuth return and clean the URL.
     const params = new URLSearchParams(window.location.search);
     const status = params.get("magnific");
-    if (status === "connected") setMsg("✓ Cuenta de Magnific conectada.");
+    if (status === "connected") setMsg("Cuenta de Magnific conectada.");
     else if (status === "unconfigured")
       setMsg("El backend no tiene MAGNIFIC_MCP_URL configurado.");
     else if (status === "error")
@@ -315,11 +335,15 @@ function MagnificAuth() {
           Mi cuenta de Magnific (MCP · OAuth)
         </span>
         <span className={`conn conn--${connected ? "ok" : "untested"}`}>
-          {connected === null
-            ? "…"
-            : connected
-              ? "✓ Conectada"
-              : "No conectada"}
+          {connected === null ? (
+            "…"
+          ) : connected ? (
+            <>
+              <IconCheck size={14} /> Conectada
+            </>
+          ) : (
+            "No conectada"
+          )}
         </span>
       </div>
       <div className="kf__row" style={{ marginTop: 8 }}>
@@ -328,18 +352,55 @@ function MagnificAuth() {
             Desconectar
           </button>
         ) : (
-          <a
+          <button
             className="gate"
-            style={{ height: 36, display: "inline-flex", alignItems: "center" }}
-            href={`${base}/auth/login`}
+            style={{ height: 36 }}
+            disabled={connecting}
+            onClick={() => {
+              setConnecting(true);
+              setMsg("Redirigiendo a Magnific para autorizar…");
+              window.location.href = `${base}/auth/login`;
+            }}
           >
-            Conectar mi cuenta de Magnific
-          </a>
+            {connecting ? "Redirigiendo a Magnific…" : "Conectar mi cuenta de Magnific"}
+          </button>
         )}
         {!configured ? (
           <span className="muted small">backend sin MAGNIFIC_MCP_URL</span>
         ) : null}
       </div>
+      {connected && account ? (
+        <div className="balance">
+          {account.plan?.productName || account.plan?.tier ? (
+            <div className="balance__row">
+              <span className="balance__label">Plan</span>
+              <span className="balance__val">
+                {account.plan.productName ?? account.plan.tier}
+                {account.plan.isUnlimitedMode ? " · ilimitado" : ""}
+              </span>
+            </div>
+          ) : null}
+          {account.credits?.available !== undefined ? (
+            <div className="balance__row">
+              <span className="balance__label">Créditos disponibles</span>
+              <span className="balance__val">
+                {account.credits.available.toLocaleString("es-ES")}
+                {account.credits.totalPlan
+                  ? ` / ${account.credits.totalPlan.toLocaleString("es-ES")}`
+                  : ""}
+              </span>
+            </div>
+          ) : null}
+          {account.credits?.spent !== undefined ? (
+            <div className="balance__row">
+              <span className="balance__label">Gastados</span>
+              <span className="balance__val">
+                {account.credits.spent.toLocaleString("es-ES")}
+              </span>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
       {msg ? <p className="muted small">{msg}</p> : null}
     </div>
   );

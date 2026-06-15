@@ -29,6 +29,12 @@ export const config = {
   magnificGeneratePath: env.VITE_MAGNIFIC_GENERATE_PATH ?? "/v1/generations",
   /** When false (default) generation is simulated; when true, real calls run. */
   magnificLive: flag(env.VITE_MAGNIFIC_LIVE),
+  /**
+   * Estimated € per Magnific credit, to translate credit usage into money.
+   * Based on the plan rate (€16/mes = 20 000 créditos → €0.0008/crédito).
+   * Override with VITE_MAGNIFIC_CREDIT_EUR if the plan changes.
+   */
+  magnificCreditEur: Number(env.VITE_MAGNIFIC_CREDIT_EUR) || 16 / 20000,
 
   /** Seed values applied to a new project's Settings (still editable in-app). */
   seed: {

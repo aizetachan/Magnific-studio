@@ -14,13 +14,20 @@ import type {
   Project,
 } from "@/types/project";
 import { GenerationBlock } from "@/generation/GenerationBlock";
-import { createSeedProject, uid } from "./seed";
+import { reconcileInflight } from "@/blocks/runner";
+import { createBlankProject, uid } from "./seed";
+import {
+  currentProjectId,
+  loadProject,
+  saveProject,
+  setUrlProject,
+} from "./persistence";
 
 /**
- * Central project store. State is held in memory (React) and is fully
- * serializable for JSON export/import — no browser storage in the MVP (§5.6).
- * The GenerationBlock lives here as a stable singleton so jobs survive
- * re-renders.
+ * Central project store. State is held in memory (React) and autosaved to this
+ * machine's localStorage so a reload never loses work (local-per-machine; see
+ * persistence.ts). It stays fully serializable for JSON export/import. The
+ * GenerationBlock lives here as a stable singleton so jobs survive re-renders.
  */
 
 export interface StoreValue {
@@ -37,14 +44,17 @@ export interface StoreValue {
   generation: GenerationBlock;
   exportJson: () => string;
   importJson: (json: string) => void;
-  /** Start a fresh project (resets to seed). */
-  newProject: () => void;
+  /** Create a blank project and open it in a new browser tab. */
+  openNewProjectTab: () => void;
 }
 
 const Ctx = createContext<StoreValue | null>(null);
 
 export function ProjectProvider({ children }: { children: ReactNode }) {
-  const [project, setProject] = useState<Project>(createSeedProject);
+  const [project, setProject] = useState<Project>(() => {
+    const id = currentProjectId();
+    return (id ? loadProject(id) : null) ?? createBlankProject();
+  });
   const [activePhase, setActivePhase] = useState<PhaseId>("story");
   const [activeSceneId, setActiveSceneId] = useState<string | null>(null);
   const generationRef = useRef<GenerationBlock>();
@@ -65,6 +75,17 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     project.settings.magnificApiKey,
   ]);
 
+  // Bind this tab to its project id in the URL (so reload/share reopens it).
+  useEffect(() => {
+    setUrlProject(project.id);
+  }, [project.id]);
+
+  // Autosave to this machine's localStorage (debounced to avoid thrashing).
+  useEffect(() => {
+    const t = setTimeout(() => saveProject(project), 400);
+    return () => clearTimeout(t);
+  }, [project]);
+
   const update = useCallback((mut: (draft: Project) => void) => {
     setProject((prev) => {
       const draft = structuredClone(prev) as Project;
@@ -81,6 +102,16 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     },
     [update],
   );
+
+  // On load, resume any generation that was still "rendering" (survive reload):
+  // the backend sweeper keeps finishing them; we poll to pull in the result.
+  const reconciled = useRef(false);
+  useEffect(() => {
+    if (reconciled.current) return;
+    reconciled.current = true;
+    reconcileInflight({ project, update, meter, generation });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const exportJson = useCallback(() => {
     // Never export secrets.
@@ -101,10 +132,11 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     [project.settings.anthropicApiKey, project.settings.magnificApiKey],
   );
 
-  const newProject = useCallback(() => {
-    setProject(createSeedProject());
-    setActivePhase("story");
-    setActiveSceneId(null);
+  // New project opens in a NEW TAB (the current project stays open here).
+  const openNewProjectTab = useCallback(() => {
+    const p = createBlankProject();
+    saveProject(p);
+    window.open(`${window.location.pathname}?p=${p.id}`, "_blank");
   }, []);
 
   const value = useMemo<StoreValue>(
@@ -119,7 +151,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       generation,
       exportJson,
       importJson,
-      newProject,
+      openNewProjectTab,
     }),
     [
       project,
@@ -130,7 +162,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       generation,
       exportJson,
       importJson,
-      newProject,
+      openNewProjectTab,
     ],
   );
 

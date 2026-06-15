@@ -110,7 +110,7 @@ export function buildStoryboardBlock(api: StoreValue): PipelineBlock {
   const storyboardBlock: PipelineBlock = {
     id: "storyboard",
     label: "Storyboard",
-    icon: "🎬",
+    icon: "",
     getPageContext,
     getActions,
     consume: (_input: BlockInput) => {
@@ -122,7 +122,11 @@ export function buildStoryboardBlock(api: StoreValue): PipelineBlock {
         shots: project.shots.filter((s) => s.approvedKeyframe).map((s) => s.id),
       },
     }),
-    getGateState: () => project.gates.storyboard,
+    getGateState: () => {
+      const g = project.gates.storyboard;
+      if (g === "validated" || g === "locked") return g;
+      return allApproved ? "ready" : "in_progress";
+    },
     validate: () => {
       api.update((d) => {
         d.gates.storyboard = "validated";

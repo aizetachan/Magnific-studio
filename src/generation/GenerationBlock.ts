@@ -2,6 +2,7 @@ import type {
   GenerationRequest,
   GenerationResult,
   GenerationTransport,
+  OnProgress,
   PreflightEstimate,
   TransportId,
 } from "@/types/generation";
@@ -60,7 +61,10 @@ export class GenerationBlock {
    * produces its part and the block assembles them at the end (division of work,
    * not redundancy / not "first to respond").
    */
-  async generate(req: GenerationRequest): Promise<GenerationResult> {
+  async generate(
+    req: GenerationRequest,
+    onProgress?: OnProgress,
+  ): Promise<GenerationResult> {
     const { mode, transports } = this.router.decide(req);
 
     if (transports.length === 0) {
@@ -103,7 +107,7 @@ export class GenerationBlock {
 
     // mcp_default | api_fallback | mcp_to_api -> single transport executes.
     const primary = transports[transports.length - 1]; // api for handoff, else mcp
-    const result = await this.transports[primary].execute(req);
+    const result = await this.transports[primary].execute(req, onProgress);
     return { ...result, mode };
   }
 }

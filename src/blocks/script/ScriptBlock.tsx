@@ -6,6 +6,7 @@ import type {
   PipelineBlock,
 } from "@/types/pipeline";
 import type { StoreValue } from "@/state/ProjectStore";
+import { generateScript } from "@/director/generate";
 import { ScriptPage } from "./ScriptPage";
 
 /**
@@ -34,45 +35,19 @@ export function buildScriptBlock(api: StoreValue): PipelineBlock {
     implicitReferent: "las escenas del guion",
   });
 
-  const meterClaude = (label: string) =>
-    api.meter({
-      phase: "script",
-      scope: "guion",
-      kind: "claude",
-      label,
-      inputTokens: 600,
-      outputTokens: 420,
-      claudeCostUsd: project.settings.anthropicApiKey ? 0.013 : 0,
-    });
-
   const getActions = (): BlockAction[] => [
     {
       id: "generate_script",
       label: "Generar guion desde la historia",
-      hint: "Deriva escenas a partir de logline y arcos.",
+      hint: "Claude crea las escenas y sus planos recomendados.",
+      generative: true,
       enabled: !locked,
-      run: () => {
-        api.update((d) => {
-          // Map story -> scenes (already seeded); mark structure ready.
-          if (d.gates.script === "in_progress") d.gates.script = "ready";
-        });
-        meterClaude("generate_script");
-      },
-    },
-    {
-      id: "rewrite_scene",
-      label: "Reescribir escena / ajustar ritmo",
-      hint: "Reformula acción y diálogo; ajusta duración.",
-      enabled: !locked,
-      run: (arg) => {
-        api.update((d) => {
-          const target = arg?.sceneId
-            ? d.scenes.find((s) => s.id === arg.sceneId)
-            : d.scenes[0];
-          if (target) target.durationSec = Math.max(4, target.durationSec - 2);
-          if (d.gates.script === "in_progress") d.gates.script = "ready";
-        });
-        meterClaude("rewrite_scene");
+      run: async () => {
+        try {
+          await generateScript(api);
+        } catch (e) {
+          alert(e instanceof Error ? e.message : String(e));
+        }
       },
     },
   ];
@@ -80,7 +55,7 @@ export function buildScriptBlock(api: StoreValue): PipelineBlock {
   return {
     id: "script",
     label: "Guion",
-    icon: "📝",
+    icon: "",
     getPageContext,
     getActions,
     consume: (_input: BlockInput) => {

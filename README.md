@@ -23,15 +23,25 @@ PROYECTO
 ```bash
 git clone <repo> && cd Magnific-studio
 npm install
-npm run dev        # http://localhost:5173
+npm run dev        # ARRANCA TODO: backend (:8787) + web (:5173) con un comando
 npm run build      # typecheck + build de producción
 npm test           # tests del Router y del orquestador
 ```
 
+`npm run dev` (o `npm start`) levanta **a la vez** el backend del Director
+(:8787) y el frontend (:5173), y los cierra juntos con Ctrl-C. No hay que
+exportar variables: el backend usa el MCP de Magnific por defecto
+(`https://mcp.magnific.com`); cada usuario conecta su cuenta vía OAuth en
+**Ajustes**. (`npm run dev:web` arranca solo el frontend; `npm run server` solo
+el backend, si los quieres por separado.)
+
 Recién clonado y **sin configurar nada**, la app arranca y es navegable de
-principio a fin: director en **modo offline** (heurístico) y generación
-**simulada** (jobs mockeados con preview). Nada que instalar aparte de
-`npm install`.
+principio a fin. Para conectar Claude y tu cuenta de Magnific, ve a **Ajustes**.
+
+**Opcional — editor de montaje con audio:** el "Ensamblar con audio" de Entrega
+(recorte + mezcla de voz/música) usa `ffmpeg` nativo. Instálalo con
+`brew install ffmpeg` y reinicia `npm run dev`. Sin ffmpeg, el editor y la
+previsualización funcionan igual y queda disponible el "Ensamblaje rápido".
 
 ## Clonar y conectar las APIs (Claude + Magnific)
 

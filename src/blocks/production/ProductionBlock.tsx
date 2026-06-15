@@ -114,7 +114,7 @@ export function buildProductionBlock(api: StoreValue): PipelineBlock {
   const productionBlock: PipelineBlock = {
     id: "production",
     label: "Producción",
-    icon: "🎞️",
+    icon: "",
     getPageContext,
     getActions,
     consume: (_input: BlockInput) => {

@@ -34,6 +34,8 @@ export interface Job {
   /** Magnific credits actually charged once the job settles. */
   creditsCharged?: number;
   taskId?: string;
+  /** Backend job id, to resume polling after a reload (survive close/reload). */
+  backendJobId?: string;
   createdAt: number;
   updatedAt: number;
 }
@@ -87,6 +89,8 @@ export interface Shot {
   keyframePrompt: string;
   imageModel: string;
   keyframeUrl?: string;
+  /** All keyframes generated for this shot (history; the active one is keyframeUrl). */
+  keyframeHistory?: string[];
   keyframeJob?: Job;
   keyframeCreditsEstimate: number;
   approvedKeyframe: boolean;
@@ -94,8 +98,12 @@ export interface Shot {
   // --- Production (video) ---
   videoPrompt: string;
   videoModel: string;
+  /** How the keyframe feeds the video: "keyframe" (start frame) or "reference". */
+  videoRefMode?: "keyframe" | "reference";
   videoDurationSec: number;
   videoUrl?: string;
+  /** All videos generated for this shot (history; the active one is videoUrl). */
+  videoHistory?: string[];
   videoJob?: Job;
   videoCreditsEstimate: number;
   approvedVideo: boolean;
@@ -105,6 +113,58 @@ export interface Delivery {
   finalVideoJob?: Job;
   finalVideoUrl?: string;
   exportedSpaceUrl?: string;
+}
+
+/**
+ * Timeline edit for the in-app montage (Montaje tab). The video clips reference
+ * produced shots; the audio placements reference generated AudioTracks. All
+ * fields are overrides on top of the auto-derived order so the editor can stay
+ * in sync as new clips/tracks are produced.
+ */
+export interface EditClip {
+  /** Unique timeline-entry id (a shot can appear more than once after a split). */
+  id: string;
+  shotId: string;
+  order: number;
+  included: boolean;
+  /** Mute this clip's native audio in playback and the final render. */
+  muted?: boolean;
+  /** Trim within the source clip, in seconds. */
+  inSec?: number;
+  outSec?: number;
+}
+
+export interface EditAudioPlacement {
+  /** References an AudioTrack.id. */
+  trackId: string;
+  /** Where this track starts on the final timeline (seconds). */
+  offsetSec: number;
+  /** 0..1 mix volume. */
+  volume: number;
+  /** Excluded from playback and from the final render. */
+  muted?: boolean;
+  inSec?: number;
+  outSec?: number;
+}
+
+export interface Timeline {
+  clips: EditClip[];
+  audio: EditAudioPlacement[];
+  /** Mute the clips' native audio (e.g. keep only the music track). */
+  muteVideo?: boolean;
+}
+
+/** A generated audio asset: scene voiceover (TTS) or a background music track. */
+export interface AudioTrack {
+  id: string;
+  kind: "voice" | "music";
+  /** For voiceovers: which scene the dialogue comes from. */
+  sceneId?: string;
+  label: string;
+  prompt: string;
+  url?: string;
+  job?: Job;
+  credits?: number;
 }
 
 /** A single metered event, for the per-phase / per-scene / per-shot history. */
@@ -166,6 +226,10 @@ export interface Project {
   scenes: Scene[];
   shots: Shot[];
   delivery: Delivery;
+  /** Generated audio: per-scene voiceovers and background music. */
+  audio?: AudioTrack[];
+  /** Timeline montage (clip order/trim + audio placement) for the editor. */
+  edit?: Timeline;
   consumption: Consumption;
   library: LibraryAsset[];
   settings: Settings;

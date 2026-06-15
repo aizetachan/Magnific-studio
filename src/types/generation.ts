@@ -43,6 +43,11 @@ export interface GenerationRequest {
   model: string;
   /** Origin keyframe / reference asset urls or identifiers. */
   references?: string[];
+  /**
+   * Typed Magnific Library references (characters, styles, locations) for visual
+   * consistency. Passed as-is to images_generate / video_generate references[].
+   */
+  libraryRefs?: Array<{ type: "character" | "style" | "locations" | "product"; identifier: string }>;
   /** Free-form params per model (duration, aspect ratio, camera...). */
   params?: Record<string, unknown>;
   /**
@@ -71,10 +76,24 @@ export interface GenerationResult {
   creditsCharged: number;
   mode: ExecutionMode;
   transportLabel: string;
+  /** The model Magnific actually used (esp. when the request model was "auto"). */
+  model?: string;
   error?: string;
   /** For parallel mode: the assembled parts. */
   parts?: Array<{ transport: TransportId; resultUrl?: string }>;
 }
+
+/** Live progress for an in-flight async generation (Magnific jobs are async). */
+export interface GenerationProgress {
+  /** 0..100 */
+  progress: number;
+  status: "rendering" | "ready" | "failed";
+  /** Backend job id, reported once the job starts (for resume after reload). */
+  jobId?: string;
+}
+
+/** Optional callback a transport calls while a job is in flight. */
+export type OnProgress = (p: GenerationProgress) => void;
 
 /** What a transport can do, derived from the CapabilityMap config. */
 export interface TransportCapability {
@@ -103,5 +122,5 @@ export interface GenerationTransport {
   /** Whether this transport can serve the request (consulted by the Router). */
   supports(req: GenerationRequest, cap: TransportCapability): boolean;
   /** Execute the request. May be async (Magnific jobs are async). */
-  execute(req: GenerationRequest): Promise<GenerationResult>;
+  execute(req: GenerationRequest, onProgress?: OnProgress): Promise<GenerationResult>;
 }

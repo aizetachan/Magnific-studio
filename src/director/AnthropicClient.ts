@@ -1,5 +1,5 @@
 import type { PageContext } from "@/types/pipeline";
-import { anthropicIsDirect, config } from "@/config";
+import { config } from "@/config";
 
 /**
  * Thin client over the Anthropic Messages API (/v1/messages).
@@ -74,6 +74,7 @@ export class AnthropicClient {
     ctx: PageContext,
     history: ClaudeMessage[],
     offlineReply: () => string,
+    maxTokens = 1024,
   ): Promise<ClaudeReply> {
     if (!this.hasKey) {
       const text = offlineReply();
@@ -88,20 +89,20 @@ export class AnthropicClient {
 
     const headers: Record<string, string> = {
       "content-type": "application/json",
-      "x-api-key": this.apiKey,
+      // Trim to avoid "invalid x-api-key" from a pasted trailing space/newline.
+      "x-api-key": this.apiKey.trim(),
       "anthropic-version": "2023-06-01",
+      // The browser always sends an Origin header (even through the Vite proxy),
+      // so Anthropic treats the call as CORS and REQUIRES this header. Always set.
+      "anthropic-dangerous-direct-browser-access": "true",
     };
-    // Only needed when calling the public API cross-origin (no proxy).
-    if (anthropicIsDirect) {
-      headers["anthropic-dangerous-direct-browser-access"] = "true";
-    }
 
     const res = await fetch(API_URL, {
       method: "POST",
       headers,
       body: JSON.stringify({
         model: this.model,
-        max_tokens: 1024,
+        max_tokens: maxTokens,
         system: buildSystemPrompt(ctx),
         messages: history.map((m) => ({ role: m.role, content: m.content })),
       }),

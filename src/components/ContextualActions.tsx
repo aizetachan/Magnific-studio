@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { IconBolt } from "@tabler/icons-react";
 import type { ActionArg, BlockAction } from "@/types/pipeline";
 
 /**
@@ -13,11 +14,13 @@ export function ContextualActions({
   arg?: ActionArg;
 }) {
   const [busy, setBusy] = useState<string | null>(null);
-  if (actions.length === 0) return null;
+  // Validation is handled by the dedicated gate buttons, not here.
+  const visible = actions.filter((a) => !a.id.startsWith("validate"));
+  if (visible.length === 0) return null;
 
   return (
     <div className="actions">
-      {actions.map((a) => (
+      {visible.map((a) => (
         <button
           key={a.id}
           className={`action ${a.generative ? "action--gen" : ""}`}
@@ -32,8 +35,20 @@ export function ContextualActions({
             }
           }}
         >
-          {busy === a.id ? "…" : a.label}
-          {a.generative ? <span className="action__gen">⚡</span> : null}
+          {busy === a.id ? (
+            <>
+              <span className="spin" /> Generando…
+            </>
+          ) : (
+            <>
+              {a.label}
+              {a.generative ? (
+                <span className="action__gen">
+                  <IconBolt size={15} />
+                </span>
+              ) : null}
+            </>
+          )}
         </button>
       ))}
     </div>

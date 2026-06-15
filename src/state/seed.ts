@@ -1,8 +1,70 @@
-import type { Project } from "@/types/project";
+import type { Project, Settings, Shot } from "@/types/project";
 import { config } from "@/config";
 
 let n = 0;
 export const uid = (p = "id") => `${p}_${Date.now().toString(36)}_${(n++).toString(36)}`;
+
+/** Shot factory — reused by the seed AND by Claude-driven script generation. */
+export function newShot(
+  sceneId: string,
+  order: number,
+  opts: {
+    description?: string;
+    keyframePrompt?: string;
+    videoPrompt?: string;
+    durationSec?: number;
+  } = {},
+): Shot {
+  const desc = opts.description ?? "";
+  return {
+    id: uid("shot"),
+    sceneId,
+    order,
+    description: desc,
+    keyframePrompt: opts.keyframePrompt ?? desc,
+    imageModel: "auto",
+    keyframeCreditsEstimate: 60,
+    approvedKeyframe: false,
+    videoPrompt: opts.videoPrompt ?? desc,
+    videoModel: "auto",
+    videoDurationSec: opts.durationSec ?? 5,
+    videoCreditsEstimate: 150,
+    approvedVideo: false,
+  };
+}
+
+function seedSettings(): Settings {
+  return {
+    anthropicApiKey: config.seed.anthropicApiKey,
+    directorModel: config.seed.directorModel,
+    magnificApiKey: config.seed.magnificApiKey,
+    magnificApiConnected: config.seed.magnificApiConnected,
+    connectionTested: "untested",
+  };
+}
+
+/** An empty project: nothing generated yet, ready to write from scratch. */
+export function createBlankProject(name = "Proyecto sin título"): Project {
+  return {
+    id: uid("proj"),
+    name,
+    createdAt: Date.now(),
+    story: { logline: "", characters: [], arcs: [], tone: "" },
+    scenes: [],
+    shots: [],
+    delivery: {},
+    consumption: { events: [] },
+    library: [],
+    settings: seedSettings(),
+    gates: {
+      story: "in_progress",
+      script: "locked",
+      storyboard: "locked",
+      production: {},
+      delivery: "locked",
+    },
+  };
+}
 
 /** A fresh project with example data so the pipeline is explorable end-to-end. */
 export function createSeedProject(): Project {
@@ -11,21 +73,8 @@ export function createSeedProject(): Project {
   const sceneB = uid("scene");
   const sceneC = uid("scene");
 
-  const shot = (sceneId: string, order: number, desc: string) => ({
-    id: uid("shot"),
-    sceneId,
-    order,
-    description: desc,
-    keyframePrompt: desc,
-    imageModel: "magnific-image-v2",
-    keyframeCreditsEstimate: 8,
-    approvedKeyframe: false,
-    videoPrompt: desc,
-    videoModel: "kling-2.1",
-    videoDurationSec: 5,
-    videoCreditsEstimate: 45,
-    approvedVideo: false,
-  });
+  const shot = (sceneId: string, order: number, desc: string) =>
+    newShot(sceneId, order, { description: desc });
 
   return {
     id: uid("proj"),

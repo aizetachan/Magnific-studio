@@ -5,7 +5,9 @@
   "type": "module",
   "description": "Magnific Studio — production pipeline (idea → guion → storyboard → producción → entrega) with Claude as an invocable, page-aware director.",
   "scripts": {
-    "dev": "vite",
+    "dev": "node scripts/dev.mjs",
+    "start": "node scripts/dev.mjs",
+    "dev:web": "vite",
     "server": "node server/index.mjs",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
@@ -14,6 +16,9 @@
   },
   "dependencies": {
     "@fontsource-variable/geist": "^5.2.9",
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "@tabler/icons-react": "^3.44.0",
+    "jszip": "^3.10.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },

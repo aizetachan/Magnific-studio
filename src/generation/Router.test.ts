@@ -5,7 +5,7 @@ import type { GenerationRequest } from "@/types/generation";
 const imageReq: GenerationRequest = {
   kind: "image",
   prompt: "plano detalle de la esfera",
-  model: "magnific-image-v2",
+  model: "recraft-v4-1",
 };
 
 describe("GenerationBlock Router — 4 execution modes (§5.5)", () => {
@@ -41,7 +41,7 @@ describe("GenerationBlock Router — 4 execution modes (§5.5)", () => {
     const res = await block.generate({
       kind: "audio",
       prompt: "score tenso",
-      model: "magnific-audio-v1",
+      model: "auto",
     });
     expect(res.ok).toBe(false);
   });

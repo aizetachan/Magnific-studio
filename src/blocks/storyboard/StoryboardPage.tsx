@@ -1,9 +1,33 @@
+import { useState } from "react";
+import {
+  IconCheck,
+  IconChevronDown,
+  IconChevronLeft,
+  IconChevronRight,
+  IconChevronUp,
+  IconDownload,
+  IconLayoutGrid,
+  IconLock,
+  IconPlus,
+  IconTrash,
+} from "@tabler/icons-react";
 import { useStore } from "@/state/ProjectStore";
 import { useActiveBlock } from "@/state/ActiveBlock";
 import { ContextualActions } from "@/components/ContextualActions";
 import { GateButton } from "@/components/GateButton";
 import { JobBadge } from "@/components/JobBadge";
-import { runShotGeneration } from "../runner";
+import { ModelSelect } from "@/components/ModelSelect";
+import { AssetModal, type PreviewAsset } from "@/components/AssetModal";
+import { ConfirmGenerateModal } from "@/components/ConfirmGenerateModal";
+import {
+  alternativeModel,
+  estCreditsFor,
+  expectedSecFor,
+  useModels,
+} from "@/generation/models";
+import { downloadAsset } from "@/state/download";
+import { newShot } from "@/state/seed";
+import { runBatched, runShotGeneration } from "../runner";
 import type { Shot } from "@/types/project";
 
 export function StoryboardPage() {
@@ -11,11 +35,38 @@ export function StoryboardPage() {
   const { project, update, generation } = store;
   const block = useActiveBlock();
   const gate = block.getGateState();
+  const imageModels = useModels("image");
+  const [preview, setPreview] = useState<PreviewAsset | null>(null);
+  const [batchOpen, setBatchOpen] = useState(false);
+  const [batchProgress, setBatchProgress] = useState<{ done: number; total: number } | null>(null);
+
+  const runAll = async (model: string) => {
+    setBatchOpen(false);
+    const targets = [...store.project.shots];
+    update((d) => d.shots.forEach((s) => (s.imageModel = model)));
+    // In batches of 3 so we don't saturate the MCP.
+    let done = 0;
+    setBatchProgress({ done, total: targets.length });
+    await runBatched(targets, 3, async (shot) => {
+      const sc = store.project.scenes.find((x) => x.id === shot.sceneId);
+      await runShotGeneration(store, {
+        shotId: shot.id,
+        field: "keyframe",
+        kind: "image",
+        phase: "storyboard",
+        scopeLabel: `Escena ${sc?.number ?? "?"} · Plano ${shot.order}`,
+        modelOverride: model,
+      });
+      done += 1;
+      setBatchProgress({ done, total: targets.length });
+    });
+    setBatchProgress(null);
+  };
 
   if (gate === "locked") {
     return (
       <div className="page locked-page">
-        <h1>🔒 Storyboard</h1>
+        <h1><IconLock size={24} /> Storyboard</h1>
         <p className="muted">Se desbloquea cuando validas el Guion.</p>
       </div>
     );
@@ -40,11 +91,37 @@ export function StoryboardPage() {
       scopeLabel: `Escena ${sceneOf(shot.sceneId).number} · Plano ${shot.order}`,
     });
 
+  // Move a shot up/down within its scene (renumbers that scene's shots).
+  const moveShot = (sceneId: string, shotId: string, dir: -1 | 1) =>
+    update((d) => {
+      const inScene = d.shots
+        .filter((x) => x.sceneId === sceneId)
+        .sort((a, b) => a.order - b.order);
+      const i = inScene.findIndex((x) => x.id === shotId);
+      const j = i + dir;
+      if (i < 0 || j < 0 || j >= inScene.length) return;
+      [inScene[i], inScene[j]] = [inScene[j], inScene[i]];
+      inScene.forEach((x, k) => {
+        d.shots.find((s) => s.id === x.id)!.order = k + 1;
+      });
+    });
+
+  /** Flip the active keyframe to a previous/next generation in its history. */
+  const stepKeyframe = (shotId: string, dir: -1 | 1) =>
+    update((d) => {
+      const s = d.shots.find((x) => x.id === shotId)!;
+      const h = s.keyframeHistory ?? [];
+      if (h.length < 2) return;
+      const i = Math.max(0, h.indexOf(s.keyframeUrl ?? ""));
+      s.keyframeUrl = h[(i + dir + h.length) % h.length];
+      s.approvedKeyframe = false;
+    });
+
   return (
     <div className="page">
       <header className="page__head">
         <div>
-          <h1>🎬 Storyboard</h1>
+          <h1><IconLayoutGrid size={24} /> Storyboard</h1>
           <p className="muted">
             Grid de keyframes del corto completo. Aprueba cada plano para
             habilitar el gate.
@@ -54,18 +131,84 @@ export function StoryboardPage() {
           state={gate}
           label="Validar storyboard → ir a Producción"
           onValidate={block.validate}
+          pending={project.shots.filter((s) => !s.approvedKeyframe).length}
         />
       </header>
 
       <ContextualActions actions={block.getActions()} />
 
+      {project.shots.length > 0 ? (
+        <div className="actions">
+          <button className="action action--gen" onClick={() => setBatchOpen(true)}>
+            Generar todos los keyframes
+          </button>
+          {project.shots.some((s) => s.keyframeUrl && !s.approvedKeyframe) ? (
+            <button
+              className="action"
+              onClick={() =>
+                update((d) =>
+                  d.shots.forEach((s) => {
+                    if (s.keyframeUrl) s.approvedKeyframe = true;
+                  }),
+                )
+              }
+            >
+              <IconCheck size={15} /> Aprobar todos
+            </button>
+          ) : null}
+        </div>
+      ) : (
+        <p className="onboard">
+          Aquí verás un keyframe por plano. Genera o ajusta el <b>Guion</b> para
+          tener escenas y planos, y luego genera las imágenes.
+        </p>
+      )}
+
+      {batchProgress ? (
+        <p className="onboard">
+          <span className="spin" /> Generando keyframes… {batchProgress.done}/
+          {batchProgress.total}
+        </p>
+      ) : null}
+
       {grouped.map(({ scene, shots }) => (
         <section key={scene.id} className="sb-group">
           <h2 className="sb-group__title">
-            Escena {scene.number} · {scene.heading}
+            <span>
+              Escena {scene.number} · {scene.heading}
+            </span>
+            {shots.some((s) => s.keyframeUrl && !s.approvedKeyframe) ? (
+              <button
+                className="mini"
+                title="Aprobar todos los planos de esta escena"
+                onClick={() =>
+                  update((d) => {
+                    d.shots
+                      .filter((x) => x.sceneId === scene.id && x.keyframeUrl)
+                      .forEach((x) => (x.approvedKeyframe = true));
+                  })
+                }
+              >
+                <IconCheck size={14} /> Aprobar escena
+              </button>
+            ) : null}
+            <button
+              className="icon-btn"
+              title="Eliminar escena"
+              onClick={() => {
+                if (!confirm(`¿Eliminar la Escena ${scene.number} y sus planos?`)) return;
+                update((d) => {
+                  d.scenes = d.scenes.filter((x) => x.id !== scene.id);
+                  d.scenes.forEach((x, i) => (x.number = i + 1));
+                  d.shots = d.shots.filter((x) => x.sceneId !== scene.id);
+                });
+              }}
+            >
+              <IconTrash size={15} />
+            </button>
           </h2>
           <div className="grid">
-            {shots.map((shot) => {
+            {shots.map((shot, sidx) => {
               const pre = generation.preflight({
                 kind: "image",
                 prompt: shot.keyframePrompt,
@@ -78,14 +221,54 @@ export function StoryboardPage() {
                 >
                   <div className="kf__img">
                     {shot.keyframeUrl ? (
-                      <img src={shot.keyframeUrl} alt={shot.description} />
+                      <img
+                        className="asset-clickable"
+                        src={shot.keyframeUrl}
+                        alt={shot.description}
+                        onClick={() =>
+                          setPreview({ url: shot.keyframeUrl!, kind: "image" })
+                        }
+                      />
                     ) : (
                       <div className="kf__empty">Sin keyframe</div>
                     )}
+                    {(shot.keyframeHistory?.length ?? 0) > 1 ? (
+                      <div className="cover-nav">
+                        <button onClick={() => stepKeyframe(shot.id, -1)} title="Generación anterior">
+                          <IconChevronLeft size={16} />
+                        </button>
+                        <span>
+                          {(shot.keyframeHistory!.indexOf(shot.keyframeUrl ?? "") + 1) || 1}/
+                          {shot.keyframeHistory!.length}
+                        </span>
+                        <button onClick={() => stepKeyframe(shot.id, 1)} title="Generación siguiente">
+                          <IconChevronRight size={16} />
+                        </button>
+                      </div>
+                    ) : null}
                   </div>
                   <div className="kf__meta">
                     <span className="tag">Plano {shot.order}</span>
-                    <JobBadge job={shot.keyframeJob} />
+                    <button
+                      className="icon-btn"
+                      title="Subir plano"
+                      disabled={sidx === 0}
+                      onClick={() => moveShot(scene.id, shot.id, -1)}
+                    >
+                      <IconChevronUp size={14} />
+                    </button>
+                    <button
+                      className="icon-btn"
+                      title="Bajar plano"
+                      disabled={sidx === shots.length - 1}
+                      onClick={() => moveShot(scene.id, shot.id, 1)}
+                    >
+                      <IconChevronDown size={14} />
+                    </button>
+                    <JobBadge
+                      job={shot.keyframeJob}
+                      etaSec={expectedSecFor("image", shot.imageModel)}
+                    />
                   </div>
                   <textarea
                     className="kf__prompt"
@@ -98,13 +281,31 @@ export function StoryboardPage() {
                     }
                   />
                   <div className="kf__row muted small">
-                    <span>{shot.imageModel}</span>
+                    <ModelSelect
+                      models={imageModels}
+                      value={shot.imageModel}
+                      onChange={(slug) =>
+                        update((d) => {
+                          d.shots.find((x) => x.id === shot.id)!.imageModel = slug;
+                        })
+                      }
+                    />
                     <span title={pre.notes}>
-                      ~{pre.credits} cr · {pre.transportLabel}
+                      ~{estCreditsFor("image", shot.imageModel)} cr
                     </span>
                   </div>
+                  {shot.keyframeJob?.status === "rendering" ? (
+                    <div className="queue">
+                      <div
+                        className="queue__bar"
+                        style={{ width: `${shot.keyframeJob.progress}%` }}
+                      />
+                    </div>
+                  ) : null}
                   <div className="kf__actions">
-                    <button onClick={() => regen(shot)}>Regenerar</button>
+                    <button onClick={() => regen(shot)}>
+                      {shot.keyframeUrl ? "Regenerar" : "Generar"}
+                    </button>
                     <button
                       onClick={() => {
                         update((d) => {
@@ -127,15 +328,90 @@ export function StoryboardPage() {
                         })
                       }
                     >
-                      {shot.approvedKeyframe ? "✓ Aprobado" : "Aprobar plano"}
+                      {shot.approvedKeyframe ? (
+                        <>
+                          <IconCheck size={15} /> Aprobado
+                        </>
+                      ) : (
+                        "Aprobar plano"
+                      )}
+                    </button>
+                    {shot.keyframeUrl ? (
+                      <button
+                        className="icon-btn"
+                        title="Descargar keyframe"
+                        onClick={() =>
+                          downloadAsset(
+                            shot.keyframeUrl!,
+                            `escena-${sceneOf(shot.sceneId).number}-plano-${shot.order}-keyframe`,
+                          )
+                        }
+                      >
+                        <IconDownload size={15} />
+                      </button>
+                    ) : null}
+                    <button
+                      className="icon-btn"
+                      title="Eliminar plano"
+                      onClick={() =>
+                        update((d) => {
+                          d.shots = d.shots.filter((x) => x.id !== shot.id);
+                        })
+                      }
+                    >
+                      <IconTrash size={15} />
                     </button>
                   </div>
+                  {shot.keyframeJob?.status === "failed" ? (
+                    <div className="kf__fail">
+                      <span>{shot.keyframeJob.error ?? "Falló la generación."}</span>
+                      <button
+                        className="mini"
+                        onClick={() => {
+                          const alt = alternativeModel(imageModels, shot.imageModel);
+                          update((d) => {
+                            d.shots.find((x) => x.id === shot.id)!.imageModel = alt;
+                          });
+                          regen(shot);
+                        }}
+                      >
+                        Reintentar con otro modelo
+                      </button>
+                    </div>
+                  ) : null}
                 </article>
               );
             })}
           </div>
+          <button
+            className="mini"
+            onClick={() =>
+              update((d) => {
+                const order =
+                  Math.max(
+                    0,
+                    ...d.shots.filter((x) => x.sceneId === scene.id).map((x) => x.order),
+                  ) + 1;
+                d.shots.push(newShot(scene.id, order, {}));
+              })
+            }
+          >
+            <IconPlus size={15} /> Añadir plano
+          </button>
         </section>
       ))}
+      {preview ? (
+        <AssetModal {...preview} onClose={() => setPreview(null)} />
+      ) : null}
+      {batchOpen ? (
+        <ConfirmGenerateModal
+          title="Generar todos los keyframes"
+          count={project.shots.length}
+          kind="image"
+          onConfirm={runAll}
+          onClose={() => setBatchOpen(false)}
+        />
+      ) : null}
     </div>
   );
 }

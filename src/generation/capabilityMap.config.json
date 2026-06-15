@@ -1,37 +1,40 @@
 {
-  "version": 1,
+  "version": 2,
   "transports": {
     "mcp": {
       "kinds": ["image", "video", "audio", "edit", "concat", "upscale"],
       "models": [
-        "magnific-image-v2",
-        "flux-pro",
-        "kling-2.1",
-        "veo-3",
-        "minimax-hailuo",
-        "magnific-audio-v1"
+        "auto",
+        "recraft-v4-1",
+        "imagen-nano-banana-2",
+        "imagen-nano-banana-2-flash",
+        "gpt-2",
+        "bytedance-seedance-pro-2.0",
+        "kling-25",
+        "bytedance-seedance-fast-2.0"
       ],
       "webhooks": false,
-      "analytics": false
+      "analytics": true
     },
     "api": {
       "kinds": ["image", "video", "concat", "upscale"],
       "models": [
-        "magnific-image-v2",
-        "flux-pro",
-        "kling-2.1",
-        "veo-3"
+        "auto",
+        "recraft-v4-1",
+        "imagen-nano-banana-2",
+        "bytedance-seedance-pro-2.0",
+        "kling-25"
       ],
       "webhooks": true,
       "analytics": true
     }
   },
   "creditBaseline": {
-    "image": 8,
-    "video": 45,
-    "audio": 6,
-    "edit": 5,
-    "concat": 2,
-    "upscale": 12
+    "image": 60,
+    "video": 150,
+    "audio": 20,
+    "edit": 40,
+    "concat": 5,
+    "upscale": 40
   }
 }

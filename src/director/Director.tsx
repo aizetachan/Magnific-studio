@@ -1,9 +1,55 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { IconMessage, IconSparkles, IconX } from "@tabler/icons-react";
 import { useStore } from "@/state/ProjectStore";
 import { useActiveBlock } from "@/state/ActiveBlock";
 import { resolveIntent } from "./orchestrator";
 import { askClaude } from "./ask";
+import { generateMoreScenes } from "./generate";
+import { runShotGeneration } from "@/blocks/runner";
+import type { Project } from "@/types/project";
 import type { ClaudeMessage } from "./AnthropicClient";
+
+/** Detect "genera imagen/vídeo para la escena N plano M" → the target shot. */
+function parseShotGen(q: string, project: Project) {
+  const s = q.toLowerCase();
+  if (!/(genera|crea|regenera|haz|nuev|produc)/.test(s)) return null;
+  const video = /v[ií]deo/.test(s);
+  const image = /imagen|keyframe|foto|frame/.test(s);
+  if (!video && !image) return null;
+  const esc = s.match(/escena\s*(\d+)/);
+  if (!esc) return null;
+  const scene = project.scenes.find((x) => x.number === parseInt(esc[1], 10));
+  if (!scene) return null;
+  const shots = project.shots
+    .filter((x) => x.sceneId === scene.id)
+    .sort((a, b) => a.order - b.order);
+  const plano = s.match(/plano\s*(\d+)/);
+  const shot = plano ? shots.find((x) => x.order === parseInt(plano[1], 10)) : shots[0];
+  if (!shot) return null;
+  return {
+    shotId: shot.id,
+    kind: (video ? "video" : "image") as "video" | "image",
+    sceneNum: scene.number,
+    order: shot.order,
+  };
+}
+
+const NUM_WORDS: Record<string, number> = {
+  un: 1, una: 1, dos: 2, tres: 3, cuatro: 4, cinco: 5, seis: 6, siete: 7, ocho: 8,
+};
+
+/** Detect "añade/genera N escenas (más)" → number of scenes to add, else null. */
+function parseSceneRequest(q: string): number | null {
+  const s = q.toLowerCase();
+  if (!/escena/.test(s)) return null;
+  if (!/(añad|agreg|genera|crea|suma|m[aá]s|otra|nueva)/.test(s)) return null;
+  const digit = s.match(/(\d+)\s*escena/);
+  if (digit) return Math.min(10, Math.max(1, parseInt(digit[1], 10)));
+  for (const [w, n] of Object.entries(NUM_WORDS)) {
+    if (new RegExp(`\\b${w}\\b`).test(s)) return n;
+  }
+  return 1;
+}
 
 /**
  * Claude's presence (§3): a thin permanent Director bar at the bottom
@@ -24,28 +70,91 @@ export function Director() {
   const [panelOpen, setPanelOpen] = useState(false);
   const [convo, setConvo] = useState<ClaudeMessage[]>([]);
   const [thinking, setThinking] = useState(false);
+  const [running, setRunning] = useState(false);
+
+  // Auto-dismiss the reply banner after 5s (only when not actively working).
+  useEffect(() => {
+    if (!reply || running) return;
+    const t = setTimeout(() => setReply(null), 5000);
+    return () => clearTimeout(t);
+  }, [reply, running]);
 
   const runCommand = async () => {
     const q = text.trim();
-    if (!q) return;
+    if (!q || running) return;
     setText("");
+    setRedirected(false);
     const ctx = block.getPageContext();
-    const actions = block.getActions();
-    const result = resolveIntent(q, ctx, actions);
-    setReply(result.reply);
-    setRedirected(result.redirected);
-    // Meter the intent routing as a (cheap) Claude call.
-    store.meter({
-      phase: ctx.phase,
-      scope: ctx.implicitReferent,
-      kind: "claude",
-      label: "director · intent",
-      inputTokens: Math.ceil(q.length / 4) + 120,
-      outputTokens: 40,
-      claudeCostUsd: store.project.settings.anthropicApiKey ? 0.0015 : 0,
-    });
+
+    // 1) Natural language: generate a keyframe/video for a specific shot.
+    const shotReq = parseShotGen(q, store.project);
+    if (shotReq) {
+      setRunning(true);
+      const what = shotReq.kind === "video" ? "vídeo" : "imagen";
+      setReply(`Generando ${what} de Escena ${shotReq.sceneNum} · Plano ${shotReq.order}…`);
+      try {
+        await runShotGeneration(store, {
+          shotId: shotReq.shotId,
+          field: shotReq.kind === "video" ? "video" : "keyframe",
+          kind: shotReq.kind,
+          phase: shotReq.kind === "video" ? "production" : "storyboard",
+          scopeLabel: `Escena ${shotReq.sceneNum} · Plano ${shotReq.order}`,
+        });
+        setReply(
+          `Listo: Escena ${shotReq.sceneNum} · Plano ${shotReq.order}. Lo verás en ${shotReq.kind === "video" ? "Producción" : "Storyboard"}.`,
+        );
+      } catch (e) {
+        setReply(e instanceof Error ? e.message : String(e));
+      } finally {
+        setRunning(false);
+      }
+      return;
+    }
+
+    // 2) Natural language: add N scenes.
+    const sceneN = parseSceneRequest(q);
+    if (sceneN) {
+      setRunning(true);
+      setReply(`Generando ${sceneN} escena${sceneN > 1 ? "s" : ""}…`);
+      try {
+        await generateMoreScenes(store, sceneN);
+        setReply(`Listo: ${sceneN} escena${sceneN > 1 ? "s" : ""} añadida${sceneN > 1 ? "s" : ""}.`);
+      } catch (e) {
+        setReply(e instanceof Error ? e.message : String(e));
+      } finally {
+        setRunning(false);
+      }
+      return;
+    }
+
+    // 2) Keyword intent → run the matching block action.
+    const result = resolveIntent(q, ctx, block.getActions());
     if (result.action) {
-      await result.action.run(result.arg);
+      setReply(result.reply);
+      setRedirected(result.redirected);
+      setRunning(true);
+      try {
+        await result.action.run(result.arg);
+      } finally {
+        setRunning(false);
+      }
+      return;
+    }
+
+    // 3) No action matched: let Claude actually answer (instead of "no entiendo").
+    setRunning(true);
+    setReply("Pensando…");
+    try {
+      const answer = await askClaude(
+        store,
+        ctx,
+        [{ role: "user", content: q }],
+        () => result.reply,
+      );
+      setReply(answer);
+      setRedirected(result.redirected);
+    } finally {
+      setRunning(false);
     }
   };
 
@@ -82,10 +191,12 @@ export function Director() {
       <div className="director">
         {reply ? (
           <div className={`director__reply ${redirected ? "is-redirect" : ""}`}>
-            <span className="director__avatar">◐</span>
+            <span className="director__avatar">
+              <IconSparkles size={16} />
+            </span>
             <span>{reply}</span>
             <button className="director__dismiss" onClick={() => setReply(null)}>
-              ✕
+              <IconX size={15} />
             </button>
           </div>
         ) : null}
@@ -96,20 +207,25 @@ export function Director() {
           <input
             placeholder={`Pide algo al Director… (scope: ${ctx.implicitReferent})`}
             value={text}
+            disabled={running}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Enter") void runCommand();
             }}
           />
-          <button className="director__go" onClick={() => void runCommand()}>
-            Enviar
+          <button
+            className="director__go"
+            disabled={running}
+            onClick={() => void runCommand()}
+          >
+            {running ? "…" : "Enviar"}
           </button>
           <button
             className="director__panel-toggle"
             onClick={() => setPanelOpen((v) => !v)}
             title="Panel de Director (conversación profunda)"
           >
-            💬
+            <IconMessage size={16} />
           </button>
         </div>
       </div>
@@ -142,7 +258,7 @@ function DirectorPanel({
             {phaseLabel} · scope: {scope}
           </div>
         </div>
-        <button onClick={onClose}>✕</button>
+        <button onClick={onClose}><IconX size={16} /></button>
       </header>
       <div className="dpanel__log">
         {convo.length === 0 ? (

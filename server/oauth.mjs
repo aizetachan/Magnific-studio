@@ -29,6 +29,32 @@ async function getJson(url, init) {
 }
 
 /**
+ * Candidate metadata URLs for an authorization-server issuer. The issuer can
+ * carry a path (e.g. Keycloak's `https://host/realms/mcp`); per RFC 8414 / OIDC
+ * the well-known segment is appended to the FULL issuer path (not just the
+ * origin) — and RFC 8414 also allows inserting it between host and path. We try
+ * the path-aware forms first, then origin-level fallbacks.
+ */
+function metadataCandidates(asUrl, mcpOrigin) {
+  const u = new URL(asUrl);
+  const origin = u.origin;
+  const path = u.pathname.replace(/\/+$/, ""); // "" or "/realms/mcp"
+  const urls = [];
+  if (path) {
+    urls.push(`${origin}${path}/.well-known/openid-configuration`);
+    urls.push(`${origin}${path}/.well-known/oauth-authorization-server`);
+    urls.push(`${origin}/.well-known/oauth-authorization-server${path}`);
+    urls.push(`${origin}/.well-known/openid-configuration${path}`);
+  }
+  urls.push(`${origin}/.well-known/oauth-authorization-server`);
+  urls.push(`${origin}/.well-known/openid-configuration`);
+  if (mcpOrigin !== origin) {
+    urls.push(`${mcpOrigin}/.well-known/oauth-authorization-server`);
+  }
+  return [...new Set(urls)];
+}
+
+/**
  * Resolve the authorization server endpoints for an MCP resource URL.
  * 1) protected-resource metadata -> authorization_servers[0]
  * 2) authorization-server metadata -> authorize/token/registration endpoints
@@ -56,17 +82,16 @@ export async function discover(mcpUrl, env = {}) {
     // No protected-resource doc — assume the resource origin is the AS.
   }
 
-  const asOrigin = new URL(asUrl).origin;
   let meta;
-  for (const path of [
-    "/.well-known/oauth-authorization-server",
-    "/.well-known/openid-configuration",
-  ]) {
+  for (const url of metadataCandidates(asUrl, origin)) {
     try {
-      meta = await getJson(`${asOrigin}${path}`);
-      break;
+      const m = await getJson(url);
+      if (m?.authorization_endpoint && m?.token_endpoint) {
+        meta = m;
+        break;
+      }
     } catch {
-      /* try next */
+      /* try next candidate */
     }
   }
   if (!meta?.authorization_endpoint || !meta?.token_endpoint) {
