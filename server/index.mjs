@@ -54,6 +54,7 @@ import {
 } from "./mcpClient.mjs";
 import { cleanupDir, hasFfmpeg, renderTimeline } from "./render.mjs";
 import { verifyFirebaseIdToken } from "./firebaseAuth.mjs";
+import { firestoreStoreAvailable, fsGet, fsPut } from "./firestoreStore.mjs";
 import {
   buildGenerationCall,
   expectedSecFor,
@@ -132,12 +133,43 @@ function loadSessions() {
   }
 }
 function persistSessions() {
+  const obj = Object.fromEntries(sessions);
+  const payload = SESSION_ENC_KEY ? encryptJson(obj) : JSON.stringify(obj);
   try {
     mkdirSync(STORAGE_DIR, { recursive: true });
-    const obj = Object.fromEntries(sessions);
-    writeFileSync(SESSIONS_FILE, SESSION_ENC_KEY ? encryptJson(obj) : JSON.stringify(obj));
+    writeFileSync(SESSIONS_FILE, payload);
   } catch {
     /* best effort */
+  }
+  // Durable copy in Firestore (Cloud Run's disk is ephemeral). Encrypted blob.
+  if (firestoreStoreAvailable()) {
+    void fsPut("sessions", payload).catch((e) =>
+      console.warn("[director] firestore sessions persist failed:", e?.message ?? e),
+    );
+  }
+}
+
+/** Restore server state from Firestore when the local disk came up empty. */
+async function restoreFromFirestore() {
+  if (!firestoreStoreAvailable()) return;
+  try {
+    if (sessions.size === 0) {
+      const raw = await fsGet("sessions");
+      if (raw) {
+        const obj = decryptJson(raw);
+        for (const [k, v] of Object.entries(obj)) sessions.set(k, v);
+        console.log(`[director] restored ${sessions.size} session(s) from Firestore`);
+      }
+    }
+    if (userBySid.size === 0) {
+      const raw = await fsGet("users");
+      if (raw) {
+        for (const [k, v] of Object.entries(JSON.parse(raw))) userBySid.set(k, v);
+        console.log(`[director] restored ${userBySid.size} user binding(s) from Firestore`);
+      }
+    }
+  } catch (e) {
+    console.warn("[director] firestore restore failed:", e?.message ?? e);
   }
 }
 
@@ -260,11 +292,15 @@ function loadUsers() {
   }
 }
 function persistUsers() {
+  const payload = JSON.stringify(Object.fromEntries(userBySid));
   try {
     mkdirSync(STORAGE_DIR, { recursive: true });
-    writeFileSync(USERS_FILE, JSON.stringify(Object.fromEntries(userBySid)));
+    writeFileSync(USERS_FILE, payload);
   } catch {
     /* best effort */
+  }
+  if (firestoreStoreAvailable()) {
+    void fsPut("users", payload).catch(() => {});
   }
 }
 /** Session key: the verified uid when logged in, else the device cookie. */
@@ -1247,6 +1283,7 @@ async function handle(req, res) {
 loadClientReg();
 loadSessions();
 loadUsers();
+void restoreFromFirestore();
 loadJobs();
 // Finish rendering jobs autonomously (survives client close/reload).
 setInterval(() => void sweep(), 8000);

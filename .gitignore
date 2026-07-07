@@ -9,3 +9,7 @@ npm-debug.log*
 .env
 .env.*
 !.env.example
+
+# Public client config for prod builds (committed on purpose); local deploy state is not.
+!.env.production
+.deploy-state
