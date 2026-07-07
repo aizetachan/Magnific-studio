@@ -18,7 +18,7 @@
 //   MAGNIFIC_OAUTH_SCOPE (optional)
 
 import { createServer } from "node:http";
-import { createHash, randomBytes } from "node:crypto";
+import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
 import { mkdir, writeFile, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import {
@@ -53,6 +53,7 @@ import {
   readCreation,
 } from "./mcpClient.mjs";
 import { cleanupDir, hasFfmpeg, renderTimeline } from "./render.mjs";
+import { verifyFirebaseIdToken } from "./firebaseAuth.mjs";
 import {
   buildGenerationCall,
   expectedSecFor,
@@ -88,25 +89,68 @@ const jobs = new Map(); // jobId -> { sid, kind, identifiers, status, resultUrl?
 let clientReg = null; // { client_id, client_secret } cached for this process
 let discovered = null; // discovered endpoints, cached
 
-// Persist OAuth sessions to disk (local, per machine) so a server restart does
-// NOT drop the user's Magnific connection. Tokens stay on this machine only.
+// Persist OAuth sessions to disk so a server restart does NOT drop the user's
+// Magnific connection. With SESSION_ENC_KEY set, tokens are encrypted at rest
+// (AES-256-GCM); without it they are plaintext (dev) and a warning is logged.
 const SESSIONS_FILE = join(STORAGE_DIR, "sessions.json");
+const SESSION_ENC_KEY = process.env.SESSION_ENC_KEY ?? "";
+if (!SESSION_ENC_KEY && process.env.NODE_ENV === "production") {
+  console.warn("[director] SESSION_ENC_KEY no está definido: los tokens Magnific se guardan SIN cifrar");
+}
+const encKey = () => createHash("sha256").update(SESSION_ENC_KEY).digest();
+function encryptJson(obj) {
+  const iv = randomBytes(12);
+  const cipher = createCipheriv("aes-256-gcm", encKey(), iv);
+  const data = Buffer.concat([cipher.update(JSON.stringify(obj), "utf8"), cipher.final()]);
+  return JSON.stringify({
+    enc: 1,
+    iv: iv.toString("base64"),
+    tag: cipher.getAuthTag().toString("base64"),
+    data: data.toString("base64"),
+  });
+}
+function decryptJson(raw) {
+  const parsed = JSON.parse(raw);
+  if (!parsed?.enc) return parsed; // legacy plaintext — migrated on next persist
+  const decipher = createDecipheriv("aes-256-gcm", encKey(), Buffer.from(parsed.iv, "base64"));
+  decipher.setAuthTag(Buffer.from(parsed.tag, "base64"));
+  const out = Buffer.concat([
+    decipher.update(Buffer.from(parsed.data, "base64")),
+    decipher.final(),
+  ]);
+  return JSON.parse(out.toString("utf8"));
+}
 function loadSessions() {
   try {
-    const obj = JSON.parse(readFileSync(SESSIONS_FILE, "utf8"));
+    const obj = decryptJson(readFileSync(SESSIONS_FILE, "utf8"));
     for (const [sid, v] of Object.entries(obj)) sessions.set(sid, v);
     console.log(`[director] loaded ${sessions.size} session(s) from disk`);
   } catch {
-    /* no sessions file yet */
+    /* no sessions file yet, or wrong SESSION_ENC_KEY */
   }
 }
 function persistSessions() {
   try {
     mkdirSync(STORAGE_DIR, { recursive: true });
-    writeFileSync(SESSIONS_FILE, JSON.stringify(Object.fromEntries(sessions)));
+    const obj = Object.fromEntries(sessions);
+    writeFileSync(SESSIONS_FILE, SESSION_ENC_KEY ? encryptJson(obj) : JSON.stringify(obj));
   } catch {
     /* best effort */
   }
+}
+
+// Cheap per-user rate limiting on the expensive routes (in-memory buckets).
+const rateBuckets = new Map(); // `${key}|${scope}` -> { count, resetAt }
+function rateLimited(key, scope, max, windowMs) {
+  const k = `${key ?? "anon"}|${scope}`;
+  const now = Date.now();
+  let b = rateBuckets.get(k);
+  if (!b || now > b.resetAt) {
+    b = { count: 0, resetAt: now + windowMs };
+    rateBuckets.set(k, b);
+  }
+  b.count++;
+  return b.count > max;
 }
 
 // Persist generation jobs so a backend restart keeps in-flight work and the
@@ -193,6 +237,40 @@ function ensureSid(req) {
   return getCookie(req, "msid") ?? randomBytes(16).toString("hex");
 }
 
+// --- Identity (Firebase Google login, optional) ---
+//
+// When FIREBASE_PROJECT_ID is set, the SPA posts its Firebase ID token to
+// /auth/firebase and we bind the anonymous msid cookie to the verified uid.
+// From then on every per-user resource (Magnific OAuth session, jobs, render
+// workspace) is keyed by `uid:<uid>` instead of the device cookie — the same
+// user gets their stuff from any browser. Without Firebase config the key is
+// simply the cookie (dev mode, same behavior as before).
+const FIREBASE_PROJECT_ID = process.env.FIREBASE_PROJECT_ID ?? "";
+const userBySid = new Map(); // sid -> { uid, email }
+const USERS_FILE = join(STORAGE_DIR, "users.json");
+function loadUsers() {
+  try {
+    const obj = JSON.parse(readFileSync(USERS_FILE, "utf8"));
+    for (const [sid, v] of Object.entries(obj)) userBySid.set(sid, v);
+  } catch {
+    /* no users file yet */
+  }
+}
+function persistUsers() {
+  try {
+    mkdirSync(STORAGE_DIR, { recursive: true });
+    writeFileSync(USERS_FILE, JSON.stringify(Object.fromEntries(userBySid)));
+  } catch {
+    /* best effort */
+  }
+}
+/** Session key: the verified uid when logged in, else the device cookie. */
+function keyOf(sid) {
+  if (!sid) return sid;
+  const u = userBySid.get(sid);
+  return u ? `uid:${u.uid}` : sid;
+}
+
 // --- OAuth orchestration ---
 async function ensureDiscovery() {
   if (!discovered) discovered = await discover(MCP_URL, OAUTH_ENV);
@@ -215,6 +293,7 @@ async function ensureClient(meta) {
   return clientReg;
 }
 function storeTokens(sid, tok) {
+  sid = keyOf(sid);
   const prev = sessions.get(sid)?.tokens ?? {};
   sessions.set(sid, {
     tokens: {
@@ -227,6 +306,7 @@ function storeTokens(sid, tok) {
 }
 /** Per-user access token, refreshed if expired. Falls back to the static env token. */
 async function tokenFor(sid) {
+  sid = keyOf(sid);
   const s = sessions.get(sid);
   if (!s?.tokens?.access_token) return MCP_STATIC_TOKEN || undefined;
   const t = s.tokens;
@@ -308,6 +388,7 @@ async function localizeAsset(name, url) {
 
 /** Start a generation: call the Magnific tool, store an async job, return its id. */
 async function startGeneration(body, sid) {
+  sid = keyOf(sid);
   const { kind, prompt, model, references, libraryRefs, params } = body;
   // No mock: always real Magnific, or an honest error to fix.
   if (!MCP_URL) {
@@ -557,7 +638,7 @@ async function sweep() {
 const MAX_CONCURRENT_RENDERS = 1;
 let renderBusy = 0;
 function renderDirFor(sid, rid) {
-  const scope = createHash("sha256").update(String(sid ?? "anon")).digest("hex").slice(0, 12);
+  const scope = createHash("sha256").update(String(keyOf(sid) ?? "anon")).digest("hex").slice(0, 12);
   return join(tmpdir(), `ms_render_${scope}_${rid}`);
 }
 
@@ -600,7 +681,7 @@ async function handle(req, res) {
   // OAuth: status
   if (req.method === "GET" && path === "/api/director/auth/status") {
     const sid = getCookie(req, "msid");
-    const tokens = sid ? sessions.get(sid)?.tokens : undefined;
+    const tokens = sid ? sessions.get(keyOf(sid))?.tokens : undefined;
     return json(res, 200, {
       connected: !!tokens?.access_token,
       configured: !!MCP_URL,
@@ -667,18 +748,52 @@ async function handle(req, res) {
     }
   }
 
-  // OAuth: logout
+  // OAuth: logout (Magnific disconnect for THIS user/session key)
   if (req.method === "POST" && path === "/api/director/auth/logout") {
     const sid = getCookie(req, "msid");
     if (sid) {
-      sessions.delete(sid);
+      sessions.delete(keyOf(sid));
       persistSessions();
     }
     return json(res, 200, { ok: true });
   }
 
+  // Identity: bind (or unbind) the msid session to a verified Firebase user.
+  // The SPA posts its ID token after Google sign-in and on every refresh.
+  if (req.method === "POST" && path === "/api/director/auth/firebase") {
+    const sid = ensureSid(req);
+    try {
+      const body = await readBody(req);
+      if (!body.idToken) {
+        userBySid.delete(sid);
+        persistUsers();
+        return json(res, 200, { ok: true, uid: null }, { "set-cookie": sidCookie(sid) });
+      }
+      if (!FIREBASE_PROJECT_ID) {
+        return json(res, 200, { ok: false, error: "FIREBASE_PROJECT_ID no configurado en el server" });
+      }
+      const { uid, email } = await verifyFirebaseIdToken(body.idToken, FIREBASE_PROJECT_ID);
+      const hadAnon = sessions.get(sid);
+      userBySid.set(sid, { uid, email });
+      persistUsers();
+      // If Magnific was connected BEFORE logging in (anonymous key), migrate
+      // that session to the user key so the connection isn't "lost" on login.
+      if (hadAnon && !sessions.get(`uid:${uid}`)) {
+        sessions.set(`uid:${uid}`, hadAnon);
+        sessions.delete(sid);
+        persistSessions();
+      }
+      return json(res, 200, { ok: true, uid }, { "set-cookie": sidCookie(sid) });
+    } catch (e) {
+      return json(res, 200, { ok: false, error: e instanceof Error ? e.message : String(e) });
+    }
+  }
+
   // Generation: START — returns a job id immediately (async by design).
   if (req.method === "POST" && path === "/api/director/mcp-generate") {
+    if (rateLimited(keyOf(getCookie(req, "msid")), "generate", 30, 5 * 60 * 1000)) {
+      return json(res, 200, { ok: false, status: "failed", error: "Demasiadas generaciones seguidas; espera unos minutos." });
+    }
     try {
       const body = await readBody(req);
       if (!body.prompt || !body.kind) {
@@ -703,7 +818,7 @@ async function handle(req, res) {
     // Session-scoped: a session can only observe its own jobs (legacy jobs
     // created before scoping have no sid and stay reachable).
     const owned = jobs.get(jobId);
-    if (owned?.sid && owned.sid !== getCookie(req, "msid")) {
+    if (owned?.sid && owned.sid !== keyOf(getCookie(req, "msid"))) {
       return json(res, 200, { ok: false, status: "failed", error: "unknown job" });
     }
     try {
@@ -725,7 +840,7 @@ async function handle(req, res) {
   if (req.method === "GET" && path === "/api/director/asset") {
     const jobId = url.searchParams.get("job");
     const job = jobId ? jobs.get(jobId) : undefined;
-    const sid = getCookie(req, "msid");
+    const sid = keyOf(getCookie(req, "msid"));
     if (!job || (job.sid && job.sid !== sid)) {
       return json(res, 404, { ok: false, error: "unknown job" });
     }
@@ -852,6 +967,9 @@ async function handle(req, res) {
     const rid = url.searchParams.get("render") ?? "";
     const name = basename(url.searchParams.get("name") ?? "");
     if (!sid) return json(res, 401, { ok: false, error: "sesión requerida" });
+    if (rateLimited(keyOf(sid), "render-input", 120, 10 * 60 * 1000)) {
+      return json(res, 429, { ok: false, error: "Demasiadas subidas; espera unos minutos." });
+    }
     if (!/^[a-z0-9]{6,32}$/.test(rid) || !name) {
       return json(res, 400, { ok: false, error: "render id o name inválido" });
     }
@@ -884,6 +1002,9 @@ async function handle(req, res) {
 
   // Local timeline render with ffmpeg (trim + concat + voice/music mux).
   if (req.method === "POST" && path === "/api/director/render") {
+    if (rateLimited(keyOf(getCookie(req, "msid")), "render", 6, 10 * 60 * 1000)) {
+      return json(res, 200, { ok: false, error: "Demasiados renders seguidos; espera unos minutos." });
+    }
     try {
       if (!(await hasFfmpeg())) {
         return json(res, 200, {
@@ -1087,6 +1208,7 @@ async function handle(req, res) {
 
 loadClientReg();
 loadSessions();
+loadUsers();
 loadJobs();
 // Finish rendering jobs autonomously (survives client close/reload).
 setInterval(() => void sweep(), 8000);
