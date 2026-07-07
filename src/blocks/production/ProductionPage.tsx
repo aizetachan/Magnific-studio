@@ -5,7 +5,6 @@ import {
   IconChevronRight,
   IconDownload,
   IconLock,
-  IconMovie,
   IconPlayerPlay,
 } from "@tabler/icons-react";
 import { useStore } from "@/state/ProjectStore";
@@ -98,23 +97,16 @@ export function ProductionPage() {
 
   return (
     <div className="page production">
-      <header className="page__head">
-        <div>
-          <h1><IconMovie size={24} /> Producción</h1>
-          <p className="muted">
-            Escena por escena, plano por plano. Cada plano es un job de vídeo con
-            su coste y estado.
-          </p>
-        </div>
-        {project.shots.length > 0 ? (
+      {project.shots.length > 0 ? (
+        <div className="actions">
           <button
             className="action action--gen"
             onClick={() => setBatchScope("all")}
           >
             Generar todos los vídeos
           </button>
-        ) : null}
-      </header>
+        </div>
+      ) : null}
 
       {batchProgress ? (
         <p className="onboard">

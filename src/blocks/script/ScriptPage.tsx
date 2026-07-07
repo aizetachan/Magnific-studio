@@ -7,13 +7,11 @@ import {
   IconLock,
   IconPlus,
   IconTrash,
-  IconWriting,
   IconX,
 } from "@tabler/icons-react";
 import { useStore } from "@/state/ProjectStore";
 import { useActiveBlock } from "@/state/ActiveBlock";
 import { ContextualActions } from "@/components/ContextualActions";
-import { GateButton } from "@/components/GateButton";
 import { downloadText } from "@/state/download";
 import { newShot, uid } from "@/state/seed";
 import { formatScript } from "./format";
@@ -43,18 +41,6 @@ export function ScriptPage() {
 
   return (
     <div className="page">
-      <header className="page__head">
-        <div>
-          <h1><IconWriting size={24} /> Guion</h1>
-          <p className="muted">Guion profesional, escena a escena.</p>
-        </div>
-        <GateButton
-          state={gate}
-          label="Guion validado → generar storyboard"
-          onValidate={block.validate}
-        />
-      </header>
-
       <ContextualActions actions={block.getActions()} />
 
       <div className="actions">

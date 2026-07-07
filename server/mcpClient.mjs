@@ -235,6 +235,32 @@ export async function creationAssetUrl(mcpUrl, token, identifier) {
 }
 
 /**
+ * Reliably resolve a creation's asset URL for chaining into video_generate:
+ * try creations_get (instant when ready), then fall back to creations_wait
+ * (long-poll) so a not-yet-materialised URL doesn't fail the chained call.
+ */
+export async function creationAssetUrlWait(mcpUrl, token, identifier) {
+  try {
+    const got = await callTool(mcpUrl, token, "creations_get", { creationIdentifier: identifier });
+    const u = readCreation(got).url;
+    if (u) return u;
+  } catch {
+    /* fall through to wait */
+  }
+  try {
+    const res = await callTool(mcpUrl, token, "creations_wait", {
+      identifiers: [identifier],
+      timeoutSeconds: 20,
+    });
+    const u = readCreation(res).url;
+    if (u) return u;
+  } catch {
+    /* give up */
+  }
+  return undefined;
+}
+
+/**
  * Create a reusable Library asset (character/product/locations) from images.
  * Returns the entry identifier to pass as-is in generation references[].
  */
@@ -295,6 +321,40 @@ export async function listVoices(mcpUrl, token, search) {
 export async function firstVoiceId(mcpUrl, token) {
   const voices = await listVoices(mcpUrl, token);
   return voices[0]?.id;
+}
+
+/** List the user's reusable Library assets (characters/styles/elements/locations). */
+export async function listLibrary(mcpUrl, token, { type, search, scope } = {}) {
+  const args = {};
+  if (type) args.type = type;
+  if (search) args.search = search;
+  if (scope) args.scope = scope;
+  const res = await callTool(mcpUrl, token, "library_list", args);
+  const out = [];
+  const seen = new Set();
+  const add = (node) => {
+    const identifier = node.identifier ?? node.id;
+    if (identifier == null || seen.has(String(identifier))) return;
+    seen.add(String(identifier));
+    out.push({
+      id: node.id != null ? String(node.id) : String(identifier),
+      identifier: String(identifier),
+      type: node.type,
+      name: node.name ?? node.title ?? `Asset ${identifier}`,
+      description: node.description,
+      thumbnail: node.thumbnailUrl ?? node.thumbnail ?? node.previewUrl ?? node.url,
+    });
+  };
+  for (const obj of objectsFrom(res)) {
+    const walk = (node) => {
+      if (!node || typeof node !== "object") return;
+      if (Array.isArray(node)) return node.forEach(walk);
+      if ((node.identifier != null || node.id != null) && (node.type != null || node.name != null)) add(node);
+      Object.values(node).forEach(walk);
+    };
+    walk(obj);
+  }
+  return out;
 }
 
 /** Account plan + credits (account_balance), parsed tolerantly (JSON or TOON). */

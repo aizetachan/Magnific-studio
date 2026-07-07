@@ -47,7 +47,7 @@ export interface GenerationRequest {
    * Typed Magnific Library references (characters, styles, locations) for visual
    * consistency. Passed as-is to images_generate / video_generate references[].
    */
-  libraryRefs?: Array<{ type: "character" | "style" | "locations" | "product"; identifier: string }>;
+  libraryRefs?: Array<{ type: "character" | "style" | "locations" | "product"; identifier: string; creationId?: string }>;
   /** Free-form params per model (duration, aspect ratio, camera...). */
   params?: Record<string, unknown>;
   /**

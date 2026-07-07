@@ -43,6 +43,9 @@ export interface BlockAction {
   hint?: string;
   /** Whether the action triggers a generation (shows credit preflight). */
   generative?: boolean;
+  /** The block's primary action — surfaced in the page lead row (next to the
+   *  description) instead of the contextual actions strip. */
+  primary?: boolean;
   /** Whether the action is currently enabled given block state. */
   enabled: boolean;
   run: (arg?: ActionArg) => void | Promise<void>;

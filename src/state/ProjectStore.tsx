@@ -22,6 +22,20 @@ import {
   saveProject,
   setUrlProject,
 } from "./persistence";
+import { getCredentials, subscribeCredentials } from "./credentials";
+
+/**
+ * Overlay the GLOBAL credentials (Anthropic key / model / connection status)
+ * onto a freshly loaded project's settings, so connecting once works in every
+ * project (they're stripped from per-project storage). Mutates and returns p.
+ */
+function applyCreds(p: Project): Project {
+  const c = getCredentials();
+  p.settings.anthropicApiKey = c.anthropicApiKey;
+  p.settings.directorModel = c.directorModel;
+  p.settings.connectionTested = c.connectionTested;
+  return p;
+}
 
 /**
  * Central project store. State is held in memory (React) and autosaved to this
@@ -46,6 +60,10 @@ export interface StoreValue {
   importJson: (json: string) => void;
   /** Create a blank project and open it in a new browser tab. */
   openNewProjectTab: () => void;
+  /** Load another existing project into THIS tab (same-tab switch). */
+  switchProject: (id: string) => void;
+  /** Create a blank project and open it in THIS tab; returns its id. */
+  createProject: () => string;
 }
 
 const Ctx = createContext<StoreValue | null>(null);
@@ -53,7 +71,7 @@ const Ctx = createContext<StoreValue | null>(null);
 export function ProjectProvider({ children }: { children: ReactNode }) {
   const [project, setProject] = useState<Project>(() => {
     const id = currentProjectId();
-    return (id ? loadProject(id) : null) ?? createBlankProject();
+    return applyCreds((id ? loadProject(id) : null) ?? createBlankProject());
   });
   const [activePhase, setActivePhase] = useState<PhaseId>("story");
   const [activeSceneId, setActiveSceneId] = useState<string | null>(null);
@@ -79,6 +97,29 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     setUrlProject(project.id);
   }, [project.id]);
+
+  // Keep the current project's settings in sync with the GLOBAL credentials, so
+  // editing them in Settings (Home) applies immediately to the open project.
+  useEffect(
+    () =>
+      subscribeCredentials(() => {
+        const c = getCredentials();
+        setProject((prev) => {
+          if (
+            prev.settings.anthropicApiKey === c.anthropicApiKey &&
+            prev.settings.directorModel === c.directorModel &&
+            prev.settings.connectionTested === c.connectionTested
+          )
+            return prev;
+          const next = structuredClone(prev) as Project;
+          next.settings.anthropicApiKey = c.anthropicApiKey;
+          next.settings.directorModel = c.directorModel;
+          next.settings.connectionTested = c.connectionTested;
+          return next;
+        });
+      }),
+    [],
+  );
 
   // Autosave to this machine's localStorage (debounced to avoid thrashing).
   useEffect(() => {
@@ -124,8 +165,8 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   const importJson = useCallback(
     (json: string) => {
       const parsed = JSON.parse(json) as Project;
-      // Keep the live keys from the current session.
-      parsed.settings.anthropicApiKey = project.settings.anthropicApiKey;
+      // Keep the live secrets from the current session (global key + magnific).
+      applyCreds(parsed);
       parsed.settings.magnificApiKey = project.settings.magnificApiKey;
       setProject(parsed);
     },
@@ -137,6 +178,23 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     const p = createBlankProject();
     saveProject(p);
     window.open(`${window.location.pathname}?p=${p.id}`, "_blank");
+  }, []);
+
+  // Switch to another existing project IN THIS TAB.
+  const switchProject = useCallback((id: string) => {
+    const p = loadProject(id);
+    if (!p) return;
+    setProject(applyCreds(p));
+    setUrlProject(id);
+  }, []);
+
+  // Create a blank project and open it IN THIS TAB.
+  const createProject = useCallback(() => {
+    const p = createBlankProject();
+    saveProject(p);
+    setProject(applyCreds(p));
+    setUrlProject(p.id);
+    return p.id;
   }, []);
 
   const value = useMemo<StoreValue>(
@@ -152,6 +210,8 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       exportJson,
       importJson,
       openNewProjectTab,
+      switchProject,
+      createProject,
     }),
     [
       project,
@@ -163,6 +223,8 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       exportJson,
       importJson,
       openNewProjectTab,
+      switchProject,
+      createProject,
     ],
   );
 

@@ -7,6 +7,7 @@ import type {
 } from "@/types/pipeline";
 import type { StoreValue } from "@/state/ProjectStore";
 import { generateStory } from "@/director/generate";
+import { generateAssetPreviews } from "@/blocks/runner";
 import { StoryPage } from "./StoryPage";
 
 /**
@@ -41,6 +42,9 @@ export function buildStoryBlock(api: StoreValue): PipelineBlock {
   const runGenerate = async () => {
     try {
       await generateStory(api);
+      // Generate the first image of each character/environment with the global
+      // style and save them to the Library (fire-and-forget; shows progress on cards).
+      void generateAssetPreviews(api);
     } catch (e) {
       alert(e instanceof Error ? e.message : String(e));
     }
@@ -49,17 +53,10 @@ export function buildStoryBlock(api: StoreValue): PipelineBlock {
   const getActions = (): BlockAction[] => [
     {
       id: "develop_story",
-      label: "Desarrollar historia desde una idea",
-      hint: "Claude expande logline, personajes y arcos desde tu idea.",
+      label: "Generar historia",
+      hint: "Claude expande la idea en personajes, entornos y arcos.",
       generative: true,
-      enabled: true,
-      run: runGenerate,
-    },
-    {
-      id: "rewrite_story",
-      label: "Reescribir tono / arco / personaje",
-      hint: "Claude reformula la historia manteniendo la esencia.",
-      generative: true,
+      primary: true,
       enabled: true,
       run: runGenerate,
     },

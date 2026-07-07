@@ -1,18 +1,21 @@
 import {
+  IconBolt,
   IconBook,
+  IconChevronLeft,
+  IconCoin,
   IconLayoutGrid,
+  IconLibrary,
   IconMovie,
   IconPackage,
-  IconPlus,
-  IconSettings,
   IconWriting,
   type IconProps,
 } from "@tabler/icons-react";
-import { useState, type ComponentType } from "react";
+import { type ComponentType, useState } from "react";
 import type { PipelineBlock } from "@/types/pipeline";
 import type { GateState, PhaseId } from "@/types/project";
 import { BLOCK_ORDER } from "@/blocks";
 import { useStore } from "@/state/ProjectStore";
+import { totals } from "@/state/consumption";
 
 const GATE_HINT: Record<GateState, string> = {
   locked: "Bloqueada",
@@ -30,95 +33,66 @@ const PHASE_ICON: Record<PhaseId, ComponentType<IconProps>> = {
 };
 
 /**
- * Left sidebar — Magnific design language: floating rounded panel (panel-4),
- * ghost hovers, per-phase category color on the icon box, pink create button.
- * Wider than Magnific's 72px icon rail because Studio navigates named phases.
+ * Studio left sidebar — floating rounded panel. Top: logo (→ Home) + the project
+ * name (editable). Below: the phase pipeline + Library. Bottom: the live
+ * consumption chips (Claude / credits / cost). New projects are created from Home.
  */
 export function Sidebar({
-  projectName,
   blocks,
   activePhase,
-  showSettings,
+  showLibrary,
   onSelectPhase,
-  onSelectSettings,
+  onSelectLibrary,
+  onSelectHome,
 }: {
-  projectName: string;
   blocks: Record<PhaseId, PipelineBlock>;
   activePhase: PhaseId;
-  showSettings: boolean;
+  showLibrary: boolean;
   onSelectPhase: (p: PhaseId) => void;
-  onSelectSettings: () => void;
+  onSelectLibrary: () => void;
+  onSelectHome: () => void;
 }) {
-  const { openNewProjectTab, update } = useStore();
-  const [editingName, setEditingName] = useState(false);
-  const [draftName, setDraftName] = useState(projectName);
+  const { project, update } = useStore();
+  const t = totals(project);
+  const claude = project.settings.connectionTested; // "ok" | "failed" | "untested"
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(project.name);
 
-  const commitName = () => {
-    const name = draftName.trim() || "Proyecto sin título";
+  const commit = () => {
     update((d) => {
-      d.name = name;
+      d.name = draft.trim() || "Proyecto sin título";
     });
-    setEditingName(false);
+    setEditing(false);
   };
 
   return (
     <nav className="sidebar">
       <div className="sidebar__brand">
-        <div className="sidebar__logo">
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="24"
-            height="24"
-            viewBox="0 0 32 32"
-            fill="none"
-            aria-label="Magnific"
-          >
-            <path
-              d="M18.4806 8L16.0805 13.862L13.6815 8H8.88124L4.08095 25C4.01661 25 10.0807 25 10.0807 25L16.0805 17.3789L22.0802 25C22.0802 25 28.1443 25 28.0799 25L23.2809 8H18.4806Z"
-              fill="currentColor"
-            />
+        <div className="sidebar__logo" role="button" title="Ir a Home" style={{ cursor: "pointer" }} onClick={onSelectHome}>
+          <svg className="sidebar__logo-mark" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 32 32" fill="none" aria-label="Magnific">
+            <path d="M18.4806 8L16.0805 13.862L13.6815 8H8.88124L4.08095 25C4.01661 25 10.0807 25 10.0807 25L16.0805 17.3789L22.0802 25C22.0802 25 28.1443 25 28.0799 25L23.2809 8H18.4806Z" fill="currentColor" />
           </svg>
+          <IconChevronLeft className="sidebar__logo-back" size={20} stroke={2.5} />
         </div>
-        <div className="sidebar__brandtext">
-          <div className="sidebar__suite">Magnific</div>
-          <strong className="sidebar__app">Studio</strong>
-        </div>
-        <button
-          className="sidebar__create"
-          title="Nuevo proyecto (nueva pestaña)"
-          onClick={openNewProjectTab}
-        >
-          <IconPlus size={18} />
-        </button>
-      </div>
-
-      <div className="sidebar__project">
-        <span className="sidebar__plabel">PROYECTO</span>
-        {editingName ? (
+        {editing ? (
           <input
             className="sidebar__projname-edit"
             autoFocus
-            value={draftName}
-            onChange={(e) => setDraftName(e.target.value)}
-            onBlur={commitName}
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onBlur={commit}
             onKeyDown={(e) => {
-              if (e.key === "Enter") commitName();
-              if (e.key === "Escape") {
-                setDraftName(projectName);
-                setEditingName(false);
-              }
+              if (e.key === "Enter") commit();
+              if (e.key === "Escape") { setDraft(project.name); setEditing(false); }
             }}
           />
         ) : (
           <div
             className="sidebar__projname"
             title="Doble clic para renombrar"
-            onDoubleClick={() => {
-              setDraftName(projectName);
-              setEditingName(true);
-            }}
+            onDoubleClick={() => { setDraft(project.name); setEditing(true); }}
           >
-            “{projectName}”
+            {project.name}
           </div>
         )}
       </div>
@@ -128,21 +102,17 @@ export function Sidebar({
           const block = blocks[id];
           const gate = block.getGateState();
           const locked = gate === "locked";
-          const active = !showSettings && id === activePhase;
+          const active = !showLibrary && id === activePhase;
           const PhaseIcon = PHASE_ICON[id];
           return (
             <li key={id}>
               <button
-                className={`navitem ${active ? "navitem--active" : ""} ${
-                  locked ? "navitem--locked" : ""
-                }`}
+                className={`navitem ${active ? "navitem--active" : ""} ${locked ? "navitem--locked" : ""}`}
                 disabled={locked}
                 title={GATE_HINT[gate]}
                 onClick={() => onSelectPhase(id)}
               >
-                <span className="navitem__icon">
-                  <PhaseIcon size={14} />
-                </span>
+                <span className="navitem__icon"><PhaseIcon size={14} /></span>
                 <span className="navitem__label">{block.label}</span>
                 <span className={`gate-dot gate-dot--${gate}`} />
               </button>
@@ -153,18 +123,23 @@ export function Sidebar({
 
       <div className="sidebar__sep" />
 
-      <button
-        className={`navitem ${showSettings ? "navitem--active" : ""}`}
-        onClick={onSelectSettings}
-      >
-        <span className="navitem__icon">
-          <IconSettings size={14} />
-        </span>
-        <span className="navitem__label">Ajustes</span>
+      <button className={`navitem ${showLibrary ? "navitem--active" : ""}`} onClick={onSelectLibrary}>
+        <span className="navitem__icon"><IconLibrary size={14} /></span>
+        <span className="navitem__label">Biblioteca</span>
       </button>
 
-      <div className="sidebar__foot">
-        Pipeline secuencial con gates. Vuelve atrás para iterar.
+      <div className="sidebar__bottom">
+        <div className="sidebar__chips">
+          <span className="meter" title={`Claude ${claude === "ok" ? "conectado" : claude === "failed" ? "sin conexión" : "sin probar"}`}>
+            <span className={`status-dot status-dot--${claude}`} /> Claude
+          </span>
+          <span className="meter" title="Créditos de Magnific consumidos">
+            <IconBolt size={14} /> {t.magnificCredits} cr
+          </span>
+          <span className="meter" title="Coste estimado de la API de Claude">
+            <IconCoin size={14} /> ${t.claudeCostUsd.toFixed(2)}
+          </span>
+        </div>
       </div>
     </nav>
   );

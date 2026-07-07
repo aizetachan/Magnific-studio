@@ -43,9 +43,11 @@ import {
   callTool,
   createLibraryAsset,
   creationAssetUrl,
+  creationAssetUrlWait,
   creationInfo,
   extractIdentifiers,
   firstVoiceId,
+  listLibrary,
   listVoices,
   readCreation,
 } from "./mcpClient.mjs";
@@ -336,22 +338,32 @@ async function startGeneration(body, sid) {
   return { ok: true, jobId, status: "rendering", expectedSec };
 }
 
+/** Pick a video model that accepts an image REFERENCE (for keyframe-driven gen). */
+async function pickImageRefVideoModel(mcpUrl, token) {
+  try {
+    const list = await listModels(mcpUrl, token, "video");
+    const refModels = list.filter((m) => m.slug && m.slug !== "auto" && m.imageRef);
+    return (refModels.find((m) => m.recommended) ?? refModels[0])?.slug;
+  } catch {
+    return undefined;
+  }
+}
+
 /**
  * Call the generation tool and return the creation identifiers. For a video WITH
- * a keyframe we try the right image mode and FALL BACK to the other if the model
- * rejects it — so the image is used as a reference when the (possibly
- * auto-chosen) model supports it, and as the start frame otherwise.
+ * a keyframe we ensure the model accepts an image reference (switching to a
+ * ref-capable model when needed), then use the keyframe as a content reference.
  */
 async function runGenerationTool(token, { kind, prompt, model, references, libraryRefs, params }) {
-  const callOnce = async (refs, extra) => {
+  const callOnce = async (refs, extra, libRefs = libraryRefs) => {
     const { tool, args } = buildGenerationCall(kind, {
       prompt,
       model,
       references: refs,
-      libraryRefs,
+      libraryRefs: libRefs,
       params: { ...params, ...extra },
     });
-    console.log(`[gen] ${tool} model=${model} refMode=${extra?.imageRefMode ?? "-"}`);
+    console.log(`[gen] ${tool} model=${model} refMode=${extra?.imageRefMode ?? "-"} libRefs=${(libRefs ?? []).length}`);
     const result = await callTool(MCP_URL, token, tool, args);
     const ids = extractIdentifiers(result);
     if (!ids.length) {
@@ -362,32 +374,48 @@ async function runGenerationTool(token, { kind, prompt, model, references, libra
 
   // Image / concat / video without a keyframe: a single call.
   if (kind !== "video" || !references?.length) {
-    const ids = await callOnce(references, {});
+    let ids = await callOnce(references, {});
+    // Some image models reject library references (character/locations/style) and
+    // return no creation. Fall back to generating WITHOUT them so it doesn't
+    // hard-fail (consistency is reduced; use a ref-capable model like Auto for it).
+    if (!ids.length && (libraryRefs?.length ?? 0) > 0) {
+      console.warn(`[gen] ${kind} model=${model} returned no id with ${libraryRefs.length} library ref(s); retrying without them`);
+      ids = await callOnce(references, {}, []);
+    }
     if (!ids.length) throw new Error(`no creation identifier returned for ${kind}`);
     return ids;
   }
 
-  // Video with a keyframe: decide the preferred image mode, then fall back.
+  // Video with a keyframe MUST run on a model that accepts an image reference,
+  // so the keyframe is actually used (consistency). If the model is "auto" or
+  // doesn't support refs, switch to a ref-capable one.
   const explicit = params?.imageRefMode; // user choice from the UI, if any
-  const supportsRef =
-    model === "auto" ? true : await modelSupportsImageRef(MCP_URL, token, kind, model);
+  let supportsRef =
+    model && model !== "auto" ? await modelSupportsImageRef(MCP_URL, token, kind, model) : false;
+  if (!supportsRef) {
+    const refModel = await pickImageRefVideoModel(MCP_URL, token);
+    if (refModel) {
+      console.log(`[gen] video+keyframe: model "${model}" → "${refModel}" (image-ref capable)`);
+      model = refModel;
+      supportsRef = true;
+    }
+  }
   const order = explicit
     ? [explicit, explicit === "reference" ? "keyframe" : "reference"]
     : supportsRef
       ? ["reference", "keyframe"]
       : ["keyframe", "reference"];
 
-  // For reference mode, references[].url needs a real asset URL (not the id).
+  // BOTH modes (reference and keyframe/start-frame) need the keyframe's real
+  // asset URL — passing the raw creation id in `url` silently yields no creation.
+  // Resolve it reliably (creations_get, then creations_wait).
   let refUrls;
   const resolveRefUrls = async () => {
     if (refUrls) return refUrls;
     refUrls = [];
     for (const id of references) {
-      try {
-        refUrls.push((await creationAssetUrl(MCP_URL, token, id)) ?? id);
-      } catch {
-        refUrls.push(id);
-      }
+      const url = await creationAssetUrlWait(MCP_URL, token, id);
+      if (url) refUrls.push(url);
     }
     return refUrls;
   };
@@ -395,7 +423,12 @@ async function runGenerationTool(token, { kind, prompt, model, references, libra
   let lastErr;
   for (const mode of order) {
     try {
-      const refs = mode === "reference" ? await resolveRefUrls() : references;
+      const refs = await resolveRefUrls();
+      if (!refs.length) {
+        lastErr = "no se pudo resolver la URL del keyframe";
+        console.error(`[gen] ${lastErr}`);
+        break;
+      }
       const ids = await callOnce(refs, { imageRefMode: mode });
       if (ids.length) return ids;
       lastErr = `sin identifier (refMode=${mode})`;
@@ -801,6 +834,20 @@ async function handle(req, res) {
       return json(res, 200, { ok: true, voices: await listVoices(MCP_URL, token, search) });
     } catch (e) {
       return json(res, 200, { ok: false, voices: [], error: e instanceof Error ? e.message : String(e) });
+    }
+  }
+
+  // List the user's existing Magnific Library assets (to browse/reuse).
+  if (req.method === "GET" && path === "/api/director/library-list") {
+    const sid = getCookie(req, "msid");
+    const token = MCP_URL ? await tokenFor(sid).catch(() => undefined) : undefined;
+    if (!token) return json(res, 200, { ok: false, assets: [] });
+    try {
+      const type = url.searchParams.get("type") || undefined;
+      const search = url.searchParams.get("q") || undefined;
+      return json(res, 200, { ok: true, assets: await listLibrary(MCP_URL, token, { type, search }) });
+    } catch (e) {
+      return json(res, 200, { ok: false, assets: [], error: e instanceof Error ? e.message : String(e) });
     }
   }
 

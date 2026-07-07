@@ -1,6 +1,22 @@
-import { useEffect, useState } from "react";
-import { IconCheck, IconSettings, IconX } from "@tabler/icons-react";
+import { useEffect, useState, type ComponentType } from "react";
+import {
+  IconAdjustmentsHorizontal,
+  IconBolt,
+  IconBuildingSkyscraper,
+  IconChartBar,
+  IconCheck,
+  IconCode,
+  IconCreditCard,
+  IconLock,
+  IconShieldLock,
+  IconSparkles,
+  IconUser,
+  IconUsers,
+  IconX,
+  type IconProps,
+} from "@tabler/icons-react";
 import { useStore } from "@/state/ProjectStore";
+import { useCredentials, setCredentials } from "@/state/credentials";
 import { AnthropicClient } from "@/director/AnthropicClient";
 import { config } from "@/config";
 import {
@@ -9,7 +25,38 @@ import {
   totals,
 } from "@/state/consumption";
 
-const MODELS = ["claude-opus-4-8", "claude-sonnet-4-6", "claude-haiku-4-5"];
+const MODELS = ["claude-fable-5", "claude-opus-4-8", "claude-sonnet-4-6", "claude-haiku-4-5"];
+
+type Sec =
+  | "perfil" | "prefs" | "seguridad"
+  | "claude" | "magnific"
+  | "uso"
+  | "team" | "people" | "apikeys" | "sso" | "billing";
+
+const NAV: { group: string; items: { id: Sec; label: string; icon: ComponentType<IconProps>; mock?: boolean }[] }[] = [
+  { group: "Cuenta", items: [
+    { id: "perfil", label: "Perfil", icon: IconUser, mock: true },
+    { id: "prefs", label: "Preferencias", icon: IconAdjustmentsHorizontal, mock: true },
+    { id: "seguridad", label: "Seguridad", icon: IconLock, mock: true },
+  ]},
+  { group: "Conexiones", items: [
+    { id: "claude", label: "Claude (API)", icon: IconSparkles },
+    { id: "magnific", label: "Magnific (MCP)", icon: IconBolt },
+  ]},
+  { group: "Uso", items: [
+    { id: "uso", label: "Consumo", icon: IconChartBar },
+  ]},
+  { group: "Organización", items: [
+    { id: "team", label: "My Team", icon: IconBuildingSkyscraper, mock: true },
+    { id: "people", label: "People", icon: IconUsers, mock: true },
+    { id: "apikeys", label: "API Keys", icon: IconCode, mock: true },
+    { id: "sso", label: "Security SSO", icon: IconShieldLock, mock: true },
+    { id: "billing", label: "Plan & billing", icon: IconCreditCard, mock: true },
+  ]},
+];
+const SEC_LABEL: Record<Sec, string> = Object.fromEntries(
+  NAV.flatMap((g) => g.items.map((i) => [i.id, i.label])),
+) as Record<Sec, string>;
 
 /**
  * Settings (§5.3) — connect your own Anthropic API key, see exactly what you
@@ -17,23 +64,26 @@ const MODELS = ["claude-opus-4-8", "claude-sonnet-4-6", "claude-haiku-4-5"];
  * shared library. The API key lives only in memory and is never exported.
  */
 export function SettingsPage() {
-  const { project, update } = useStore();
-  const s = project.settings;
+  const { project } = useStore();
+  // Anthropic key / model / status are GLOBAL (shared by every project), so
+  // connecting here works in any project opened in the Studio.
+  const creds = useCredentials();
   const t = totals(project);
   const byPhase = creditsByPhase(project);
   const [testing, setTesting] = useState(false);
   const [connError, setConnError] = useState<string | null>(null);
+  const [section, setSection] = useState<Sec>("perfil");
+  // Mock profile fields (visual only, not persisted).
+  const [profile, setProfile] = useState({ name: "", username: "", email: "" });
 
   const testConnection = async () => {
     setTesting(true);
     setConnError(null);
     try {
-      const client = new AnthropicClient(s.anthropicApiKey, s.directorModel);
+      const client = new AnthropicClient(creds.anthropicApiKey, creds.directorModel);
       if (!client.hasKey) {
         setConnError("Falta la API key.");
-        update((d) => {
-          d.settings.connectionTested = "failed";
-        });
+        setCredentials({ connectionTested: "failed" });
         return;
       }
       await client.send(
@@ -48,222 +98,310 @@ export function SettingsPage() {
         [{ role: "user", content: "ping" }],
         () => "pong",
       );
-      update((d) => {
-        d.settings.connectionTested = "ok";
-      });
+      setCredentials({ connectionTested: "ok" });
     } catch (e) {
       setConnError(e instanceof Error ? e.message : String(e));
-      update((d) => {
-        d.settings.connectionTested = "failed";
-      });
+      setCredentials({ connectionTested: "failed" });
     } finally {
       setTesting(false);
     }
   };
 
-  // Auto-validate the Claude key as soon as it's entered/changed (no need to
-  // press the button), so the connection status is always shown visually.
-  useEffect(() => {
-    if (s.anthropicApiKey && s.connectionTested === "untested") {
-      const id = setTimeout(() => void testConnection(), 600);
-      return () => clearTimeout(id);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [s.anthropicApiKey, s.connectionTested]);
 
   return (
-    <div className="page">
-      <header className="page__head">
-        <div>
-          <h1><IconSettings size={24} /> Ajustes</h1>
-          <p className="muted">
-            Conecta tu cuenta y mira exactamente lo que consumes.
-          </p>
-        </div>
-      </header>
-
-      <section className="cards">
-        <div className="card">
-          <label className="card__label">API de Anthropic (Claude)</label>
-          <input
-            type="password"
-            placeholder="sk-ant-..."
-            value={s.anthropicApiKey}
-            onChange={(e) =>
-              update((d) => {
-                d.settings.anthropicApiKey = e.target.value;
-                d.settings.connectionTested = "untested";
-              })
-            }
-          />
-          <p className="muted small">
-            Se guarda solo en memoria de la sesión. Nunca se exporta ni se
-            hardcodea.
-          </p>
-          <label className="card__label">Modelo del director</label>
-          <select
-            value={s.directorModel}
-            onChange={(e) =>
-              update((d) => {
-                d.settings.directorModel = e.target.value;
-              })
-            }
-          >
-            {MODELS.map((m) => (
-              <option key={m} value={m}>
-                {m}
-              </option>
-            ))}
-          </select>
-          <div className="kf__row">
-            <button className="mini" disabled={testing} onClick={testConnection}>
-              {testing ? "Probando…" : "Probar conexión"}
-            </button>
-            <span
-              className={`conn conn--${testing ? "untested" : s.connectionTested}`}
-            >
-              {testing ? (
-                "Validando…"
-              ) : s.connectionTested === "ok" ? (
-                <>
-                  <IconCheck size={14} /> Claude conectado
-                </>
-              ) : s.connectionTested === "failed" ? (
-                <>
-                  <IconX size={14} /> Sin conexión
-                </>
-              ) : (
-                "Sin probar"
-              )}
-            </span>
-          </div>
-          {connError && s.connectionTested === "failed" ? (
-            <p className="muted small" style={{ color: "var(--err, #d05656)" }}>
-              {connError.includes("401") || /x-api-key/i.test(connError)
-                ? "La API key no es válida. Revísala (sin espacios) en console.anthropic.com."
-                : /404|not_found|model/i.test(connError)
-                  ? `El modelo "${s.directorModel}" no está disponible en tu cuenta. Prueba otro modelo.`
-                  : connError}
-            </p>
-          ) : null}
-        </div>
-
-        <div className="card">
-          <label className="card__label">Magnific (generación)</label>
-          <p className="muted small">
-            Conecta tu cuenta de Magnific por <b>MCP (OAuth)</b>: la generación
-            usa tus propios créditos. Es el camino principal y recomendado.
-          </p>
-
-          <MagnificAuth />
-
-          <p className="muted small" style={{ marginTop: 14 }}>
-            Generación{" "}
-            {config.magnificLive ? (
-              <b className="ok">en vivo</b>
-            ) : (
-              <b>simulada</b>
-            )}
-            . El backend ejecuta las herramientas del MCP de Magnific con tu
-            sesión OAuth y descarga cada resultado a este equipo.
-            {config.magnificLive ? null : (
-              <>
-                {" "}
-                Para llamadas reales: arranca el server con{" "}
-                <code>MAGNIFIC_MCP_URL=https://mcp.magnific.com</code> y la app
-                con <code>VITE_MAGNIFIC_LIVE=true</code>.
-              </>
-            )}
-          </p>
-          <ul className="meta-list">
-            <li>
-              <span>McpTransport</span>
-              <b className="ok">sano</b>
-            </li>
-          </ul>
-        </div>
-      </section>
-
-      <section className="cards">
-        <div className="card">
-          <label className="card__label">Consumo de Claude (transparencia)</label>
-          <ul className="meta-list">
-            <li>
-              <span>Tokens entrada</span>
-              <b>{t.claudeInputTokens.toLocaleString()}</b>
-            </li>
-            <li>
-              <span>Tokens salida</span>
-              <b>{t.claudeOutputTokens.toLocaleString()}</b>
-            </li>
-            <li>
-              <span>Coste estimado</span>
-              <b>${t.claudeCostUsd.toFixed(4)}</b>
-            </li>
-          </ul>
-        </div>
-
-        <div className="card">
-          <label className="card__label">Créditos Magnific por fase</label>
-          <ul className="meta-list">
-            {Object.keys(PHASE_LABELS).map((p) => (
-              <li key={p}>
-                <span>{PHASE_LABELS[p as keyof typeof PHASE_LABELS]}</span>
-                <b>{byPhase[p] ?? 0} cr</b>
-              </li>
-            ))}
-            <li className="meta-list__total">
-              <span>Total</span>
-              <b>{t.magnificCredits} cr</b>
-            </li>
-          </ul>
-        </div>
-      </section>
-
-      <section className="cards">
-        <div className="card card--list">
-          <label className="card__label">Biblioteca compartida</label>
-          <p className="muted small">
-            Personajes / locations reutilizables (alineado con library_create),
-            compartibles entre proyectos y con el resto de la suite.
-          </p>
-          {project.library.map((a) => (
-            <div className="row" key={a.id}>
-              <span className="tag">{a.type}</span>
-              <span className="row__title">{a.name}</span>
+    <div className="settings">
+      <div className="settings__layout">
+        <aside className="settings__nav">
+          {NAV.map((g) => (
+            <div className="settings__group" key={g.group}>
+              <div className="settings__grouplabel">{g.group}</div>
+              {g.items.map((it) => {
+                const Icon = it.icon;
+                return (
+                  <button
+                    key={it.id}
+                    className={`settings__navitem ${section === it.id ? "is-on" : ""}`}
+                    onClick={() => setSection(it.id)}
+                  >
+                    <Icon size={16} />
+                    <span>{it.label}</span>
+                    {it.mock ? <span className="settings__soon">pronto</span> : null}
+                  </button>
+                );
+              })}
             </div>
           ))}
-        </div>
+        </aside>
 
-        <div className="card">
-          <label className="card__label">Historial de consumo</label>
-          <div className="history">
-            {project.consumption.events.length === 0 ? (
-              <p className="muted small">Aún sin eventos.</p>
-            ) : (
-              [...project.consumption.events]
-                .reverse()
-                .slice(0, 30)
-                .map((e) => (
-                  <div className="history__row" key={e.id}>
-                    <span className={`dot dot--${e.kind}`} />
-                    <span className="history__scope">
-                      {PHASE_LABELS[e.phase]} · {e.scope}
-                    </span>
-                    <span className="history__label muted small">
-                      {e.label}
-                    </span>
-                    <span className="history__val">
-                      {e.kind === "magnific"
-                        ? `${e.credits ?? 0} cr`
-                        : `$${(e.claudeCostUsd ?? 0).toFixed(4)}`}
-                    </span>
-                  </div>
-                ))
-            )}
-          </div>
+        <div className="settings__body">
+          <h1 className="settings__title">{SEC_LABEL[section]}</h1>
+
+          {/* ---------- Conexiones · Claude (real) ---------- */}
+          {section === "claude" ? (
+            <div className="card">
+              <label className="card__label">API de Anthropic (Claude)</label>
+              <input
+                type="password"
+                placeholder="sk-ant-..."
+                value={creds.anthropicApiKey}
+                onChange={(e) =>
+                  setCredentials({ anthropicApiKey: e.target.value, connectionTested: "untested" })
+                }
+              />
+              <p className="muted small">
+                Se guarda solo en memoria de la sesión. Nunca se exporta ni se
+                hardcodea.
+              </p>
+              <label className="card__label">Modelo del director</label>
+              <select
+                value={creds.directorModel}
+                onChange={(e) => setCredentials({ directorModel: e.target.value })}
+              >
+                {MODELS.map((m) => (
+                  <option key={m} value={m}>
+                    {m}
+                  </option>
+                ))}
+              </select>
+              <div className="conn-row">
+                <span
+                  className={`conn conn--${testing ? "untested" : creds.connectionTested}`}
+                >
+                  {testing ? (
+                    "Validando…"
+                  ) : creds.connectionTested === "ok" ? (
+                    <>
+                      <IconCheck size={14} /> Claude conectado
+                    </>
+                  ) : creds.connectionTested === "failed" ? (
+                    <>
+                      <IconX size={14} /> Sin conexión
+                    </>
+                  ) : (
+                    "Sin probar"
+                  )}
+                </span>
+                <button className="action action--gen" disabled={testing} onClick={testConnection}>
+                  {testing ? "Probando…" : "Comprobar conexión"}
+                </button>
+              </div>
+              {connError && creds.connectionTested === "failed" ? (
+                <p className="muted small" style={{ color: "var(--err, #d05656)" }}>
+                  {connError.includes("401") || /x-api-key/i.test(connError)
+                    ? "La API key no es válida. Revísala (sin espacios) en console.anthropic.com."
+                    : /404|not_found|model/i.test(connError)
+                      ? `El modelo "${creds.directorModel}" no está disponible en tu cuenta. Prueba otro modelo.`
+                      : connError}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+
+          {/* ---------- Conexiones · Magnific (real) ---------- */}
+          {section === "magnific" ? (
+            <div className="card">
+              <label className="card__label">Magnific (generación)</label>
+              <p className="muted small">
+                Conecta tu cuenta de Magnific por <b>MCP (OAuth)</b>: la
+                generación usa tus propios créditos. Es el camino principal y
+                recomendado.
+              </p>
+
+              <MagnificAuth />
+
+              <p className="muted small" style={{ marginTop: 14 }}>
+                Generación{" "}
+                {config.magnificLive ? (
+                  <b className="ok">en vivo</b>
+                ) : (
+                  <b>simulada</b>
+                )}
+                . El backend ejecuta las herramientas del MCP de Magnific con tu
+                sesión OAuth y descarga cada resultado a este equipo.
+                {config.magnificLive ? null : (
+                  <>
+                    {" "}
+                    Para llamadas reales: arranca el server con{" "}
+                    <code>MAGNIFIC_MCP_URL=https://mcp.magnific.com</code> y la
+                    app con <code>VITE_MAGNIFIC_LIVE=true</code>.
+                  </>
+                )}
+              </p>
+              <ul className="meta-list">
+                <li>
+                  <span>McpTransport</span>
+                  <b className="ok">sano</b>
+                </li>
+              </ul>
+            </div>
+          ) : null}
+
+          {/* ---------- Uso · Consumo (real) ---------- */}
+          {section === "uso" ? (
+            <>
+              <div className="settings__row2">
+                <div className="card">
+                  <label className="card__label">Consumo de Claude</label>
+                  <ul className="meta-list">
+                    <li>
+                      <span>Tokens entrada</span>
+                      <b>{t.claudeInputTokens.toLocaleString()}</b>
+                    </li>
+                    <li>
+                      <span>Tokens salida</span>
+                      <b>{t.claudeOutputTokens.toLocaleString()}</b>
+                    </li>
+                    <li>
+                      <span>Coste estimado</span>
+                      <b>${t.claudeCostUsd.toFixed(4)}</b>
+                    </li>
+                  </ul>
+                </div>
+
+                <div className="card">
+                  <label className="card__label">Créditos Magnific por fase</label>
+                  <ul className="meta-list">
+                    {Object.keys(PHASE_LABELS).map((p) => (
+                      <li key={p}>
+                        <span>{PHASE_LABELS[p as keyof typeof PHASE_LABELS]}</span>
+                        <b>{byPhase[p] ?? 0} cr</b>
+                      </li>
+                    ))}
+                    <li className="meta-list__total">
+                      <span>Total</span>
+                      <b>{t.magnificCredits} cr</b>
+                    </li>
+                  </ul>
+                </div>
+              </div>
+
+              <div className="card">
+                <label className="card__label">Historial de consumo</label>
+                <div className="history">
+                  {project.consumption.events.length === 0 ? (
+                    <p className="muted small">Aún sin eventos.</p>
+                  ) : (
+                    [...project.consumption.events]
+                      .reverse()
+                      .slice(0, 30)
+                      .map((e) => (
+                        <div className="history__row" key={e.id}>
+                          <span className={`dot dot--${e.kind}`} />
+                          <span className="history__scope">
+                            {PHASE_LABELS[e.phase]} · {e.scope}
+                          </span>
+                          <span className="history__label muted small">
+                            {e.label}
+                          </span>
+                          <span className="history__val">
+                            {e.kind === "magnific"
+                              ? `${e.credits ?? 0} cr`
+                              : `$${(e.claudeCostUsd ?? 0).toFixed(4)}`}
+                          </span>
+                        </div>
+                      ))
+                  )}
+                </div>
+              </div>
+            </>
+          ) : null}
+
+          {/* ---------- Cuenta · Perfil (mock) ---------- */}
+          {section === "perfil" ? (
+            <div className="card">
+              <div className="settings__avatar-row">
+                <div className="settings__avatar">
+                  {(profile.name || "S").trim().charAt(0).toUpperCase()}
+                </div>
+                <button className="mini" disabled>
+                  Cambiar avatar
+                </button>
+              </div>
+              <label className="card__label">Nombre</label>
+              <input
+                placeholder="Santi"
+                value={profile.name}
+                onChange={(e) => setProfile((p) => ({ ...p, name: e.target.value }))}
+              />
+              <label className="card__label">Username</label>
+              <input
+                placeholder="santi"
+                value={profile.username}
+                onChange={(e) =>
+                  setProfile((p) => ({ ...p, username: e.target.value }))
+                }
+              />
+              <label className="card__label">Email</label>
+              <input
+                placeholder="santi@example.com"
+                value={profile.email}
+                onChange={(e) => setProfile((p) => ({ ...p, email: e.target.value }))}
+              />
+              <p className="muted small">
+                Perfil de demostración — todavía no se persiste.
+              </p>
+            </div>
+          ) : null}
+
+          {/* ---------- Cuenta · Preferencias (mock) ---------- */}
+          {section === "prefs" ? (
+            <div className="card">
+              <label className="card__label">Idioma</label>
+              <select disabled defaultValue="es">
+                <option value="es">Español</option>
+                <option value="en">English</option>
+              </select>
+              <label className="card__label">Tema</label>
+              <select disabled defaultValue="dark">
+                <option value="dark">Oscuro</option>
+                <option value="light">Claro</option>
+              </select>
+              <p className="muted small">Mock — se cableará más adelante.</p>
+            </div>
+          ) : null}
+
+          {/* ---------- Cuenta · Seguridad (mock) ---------- */}
+          {section === "seguridad" ? (
+            <div className="card">
+              <label className="card__label">Contraseña</label>
+              <div className="kf__row">
+                <span className="muted small">
+                  Mantén tu cuenta segura con una contraseña fuerte.
+                </span>
+                <button className="mini" disabled>
+                  Cambiar contraseña
+                </button>
+              </div>
+              <label className="card__label">Verificación en dos pasos</label>
+              <div className="kf__row">
+                <span className="muted small">2FA desactivado.</span>
+                <button className="mini" disabled>
+                  Activar 2FA
+                </button>
+              </div>
+              <p className="muted small">Mock — pendiente de backend de cuentas.</p>
+            </div>
+          ) : null}
+
+          {/* ---------- Organización (mock) ---------- */}
+          {section === "team" ||
+          section === "people" ||
+          section === "apikeys" ||
+          section === "sso" ||
+          section === "billing" ? (
+            <div className="card settings__mock">
+              <p className="muted">
+                <b>{SEC_LABEL[section]}</b> — sección de organización en
+                construcción.
+              </p>
+              <p className="muted small">
+                Reservada para la gestión de equipo (miembros, claves de API,
+                SSO y facturación). Aún no conectada.
+              </p>
+            </div>
+          ) : null}
         </div>
-      </section>
+      </div>
     </div>
   );
 }

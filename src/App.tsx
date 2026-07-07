@@ -1,13 +1,56 @@
-import { useEffect, useMemo, useState } from "react";
-import { IconAlertTriangle } from "@tabler/icons-react";
+import { useEffect, useMemo, useState, type ComponentType } from "react";
+import {
+  IconAlertTriangle,
+  IconBook,
+  IconLayoutGrid,
+  IconLibrary,
+  IconMovie,
+  IconPackage,
+  IconWriting,
+  type IconProps,
+} from "@tabler/icons-react";
 import { useStore } from "@/state/ProjectStore";
 import { ActiveBlockContext } from "@/state/ActiveBlock";
+import { LeadSlotContext } from "@/state/LeadSlot";
 import { buildBlocks } from "@/blocks";
 import { config } from "@/config";
+import type { PhaseId } from "@/types/project";
 import { Sidebar } from "@/components/Sidebar";
+import { GateButton } from "@/components/GateButton";
+import { HeaderActions } from "@/components/Topbar";
 import { Director } from "@/director/Director";
-import { SettingsPage } from "@/settings/SettingsPage";
-import { Topbar } from "@/components/Topbar";
+import { LibraryPage } from "@/blocks/library/LibraryPage";
+import { HomeShell } from "@/home/HomeShell";
+
+/** Per-phase header metadata (icon + description + the gate that unlocks next). */
+const PHASE_META: Record<
+  PhaseId,
+  { icon: ComponentType<IconProps>; desc: string; gateLabel?: string }
+> = {
+  story: {
+    icon: IconBook,
+    desc: "Desarrolla la narrativa, el estilo visual y las referencias. Claude propone personajes y entornos y genera su primera imagen con el estilo definido.",
+    gateLabel: "Historia lista → escribir guion",
+  },
+  script: {
+    icon: IconWriting,
+    desc: "Guion profesional, escena a escena.",
+    gateLabel: "Guion validado → generar storyboard",
+  },
+  storyboard: {
+    icon: IconLayoutGrid,
+    desc: "Grid de keyframes del corto completo. Aprueba cada plano para habilitar el gate.",
+    gateLabel: "Validar storyboard → ir a Producción",
+  },
+  production: {
+    icon: IconMovie,
+    desc: "Escena por escena, plano por plano. Cada plano es un job de vídeo con su coste y estado.",
+  },
+  delivery: {
+    icon: IconPackage,
+    desc: "Monta el corto con todos los assets y entrégalo.",
+  },
+};
 
 /** Persistent prompt to connect Magnific when live generation needs a session. */
 function ConnectionBanner() {
@@ -70,7 +113,45 @@ function OAuthBanner() {
 
 export function App() {
   const store = useStore();
-  const [showSettings, setShowSettings] = useState(false);
+  const [showLibrary, setShowLibrary] = useState(false);
+  const [libraryFocus, setLibraryFocus] = useState<string | null>(null);
+  // Slot in the page lead row where pages can portal controls (e.g. tabs).
+  const [leadSlot, setLeadSlot] = useState<HTMLElement | null>(null);
+  // Home is the initial screen; a deep link (?p=) lands straight in the Studio.
+  const [view, setView] = useState<"home" | "studio">(() =>
+    new URLSearchParams(window.location.search).has("p") ? "studio" : "home",
+  );
+
+  // Deep-link from anywhere (e.g. Historia's edit icon) to the Library, focused
+  // on a specific asset.
+  useEffect(() => {
+    const open = (e: Event) => {
+      const id = (e as CustomEvent<{ assetId?: string }>).detail?.assetId ?? null;
+      setLibraryFocus(id);
+      setShowLibrary(true);
+    };
+    window.addEventListener("ms:open-library", open);
+    return () => window.removeEventListener("ms:open-library", open);
+  }, []);
+
+  // Pink "what changed" highlight: any element with [data-flash="<id>"] flashes
+  // when the Director (or anything) dispatches ms:flash with that target.
+  useEffect(() => {
+    const onFlash = (e: Event) => {
+      const target = (e as CustomEvent<{ target?: string }>).detail?.target;
+      if (!target) return;
+      // Defer so a page switch (if any) has mounted the element.
+      setTimeout(() => {
+        const el = document.querySelector(`[data-flash="${target}"]`);
+        if (!el) return;
+        el.classList.add("flash");
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+        setTimeout(() => el.classList.remove("flash"), 2400);
+      }, 60);
+    };
+    window.addEventListener("ms:flash", onFlash);
+    return () => window.removeEventListener("ms:flash", onFlash);
+  }, []);
 
   // Live blocks built from the current store snapshot (decoupled by interface).
   const blocks = useMemo(
@@ -80,32 +161,79 @@ export function App() {
   );
   const activeBlock = blocks[store.activePhase];
 
+  if (view === "home") {
+    return <HomeShell onEnterStudio={() => setView("studio")} />;
+  }
+
+  const meta = PHASE_META[store.activePhase];
+  const HeaderIcon = showLibrary ? IconLibrary : meta.icon;
+  const headerTitle = showLibrary ? "Biblioteca" : activeBlock.label;
+  const headerDesc = showLibrary
+    ? "Personajes, entornos y estilo reutilizables para mantener la consistencia visual en todas las escenas. Créalos aquí antes de producir."
+    : meta.desc;
+  const gateLabel = showLibrary ? undefined : meta.gateLabel;
+
   return (
     <ActiveBlockContext.Provider value={activeBlock}>
+      <LeadSlotContext.Provider value={leadSlot}>
       <div className="app">
         <OAuthBanner />
         <ConnectionBanner />
         <Sidebar
-          projectName={store.project.name}
           blocks={blocks}
           activePhase={store.activePhase}
-          showSettings={showSettings}
+          showLibrary={showLibrary}
           onSelectPhase={(p) => {
             store.setActivePhase(p);
-            setShowSettings(false);
+            setShowLibrary(false);
           }}
-          onSelectSettings={() => setShowSettings(true)}
+          onSelectLibrary={() => setShowLibrary(true)}
+          onSelectHome={() => setView("home")}
         />
         <main className="main">
-          <Topbar />
+          {/* Full-width header bar, outside the scrolling content container. */}
+          <div className="main__headbar">
+            <header className="page__head">
+              <div>
+                <h1><HeaderIcon size={24} /> {headerTitle}</h1>
+              </div>
+              <div className="page__head-actions">
+                {/* Global actions (icon-only) on the left, validation gate at the far right. */}
+                <HeaderActions />
+                {gateLabel ? (
+                  <GateButton
+                    state={activeBlock.getGateState()}
+                    label={gateLabel}
+                    onValidate={activeBlock.validate}
+                    pending={
+                      store.activePhase === "storyboard"
+                        ? store.project.shots.filter((s) => !s.approvedKeyframe).length
+                        : undefined
+                    }
+                  />
+                ) : null}
+              </div>
+            </header>
+          </div>
           <div className="main__scroll">
             <div className="content-panel">
-              {showSettings ? <SettingsPage /> : activeBlock.render()}
+              {/* Lead row at the top of the content: description (left) + a slot
+                  where the page can portal controls like tabs (right). */}
+              <div className="page__lead">
+                <p className="muted page__desc">{headerDesc}</p>
+                <div className="page__lead-slot" ref={setLeadSlot} />
+              </div>
+              {showLibrary ? (
+                <LibraryPage focusAssetId={libraryFocus} />
+              ) : (
+                activeBlock.render()
+              )}
             </div>
           </div>
           <Director />
         </main>
       </div>
+      </LeadSlotContext.Provider>
     </ActiveBlockContext.Provider>
   );
 }

@@ -14,8 +14,9 @@ export function ContextualActions({
   arg?: ActionArg;
 }) {
   const [busy, setBusy] = useState<string | null>(null);
-  // Validation is handled by the dedicated gate buttons, not here.
-  const visible = actions.filter((a) => !a.id.startsWith("validate"));
+  // Validation is handled by the gate button; the primary action lives in the
+  // page lead row (next to the description) — neither shows here.
+  const visible = actions.filter((a) => !a.id.startsWith("validate") && !a.primary);
   if (visible.length === 0) return null;
 
   return (

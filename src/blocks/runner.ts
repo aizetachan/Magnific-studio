@@ -2,6 +2,7 @@ import type { GenerationKind, GenerationRequest } from "@/types/generation";
 import type { Job, PhaseId, Project, Shot } from "@/types/project";
 import type { GenerationBlock } from "@/generation/GenerationBlock";
 import { config } from "@/config";
+import { characterSheetPrompt, environmentGridPrompt } from "@/director/generate";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -85,9 +86,42 @@ export async function runShotGeneration(
   const shot = project.shots.find((s) => s.id === opts.shotId);
   if (!shot) return;
 
-  const prompt = opts.field === "keyframe" ? shot.keyframePrompt : shot.videoPrompt;
+  const isKeyframe = opts.field === "keyframe";
   const model =
-    opts.modelOverride ?? (opts.field === "keyframe" ? shot.imageModel : shot.videoModel);
+    opts.modelOverride ?? (isKeyframe ? shot.imageModel : shot.videoModel);
+
+  // Scene-scoped references (visual consistency): the characters + location the
+  // scene was assigned, plus the global style. Magnific limits: video_generate
+  // only accepts character refs, so location & style enter via the KEYFRAME (the
+  // video inherits them through that keyframe). Style is a TEXT definition applied
+  // to the keyframe prompt (library_create can't make a "style" asset).
+  const scene = project.scenes.find((s) => s.id === shot.sceneId);
+  const lib = project.library ?? [];
+  const assetById = (id: string) => lib.find((a) => a.id === id);
+  // Effective refs: the shot's override if set, else inherited from its scene.
+  const effCharacterIds = shot.characterIds ?? scene?.characterIds ?? [];
+  const effLocationId = shot.locationId ?? scene?.locationId;
+  const charRefs = effCharacterIds
+    .map(assetById)
+    .filter((a) => a?.type === "character" && a.magnificIdentifier)
+    // creationId = the character's source image creation; video references need a
+    // real asset URL (resolved server-side from this), not the library identifier.
+    .map((a) => ({ type: "character" as const, identifier: a!.magnificIdentifier!, creationId: a!.creationIds?.[0] }));
+  const locAsset = effLocationId ? assetById(effLocationId) : undefined;
+  const styleAsset = project.styleId ? assetById(project.styleId) : undefined;
+
+  let prompt = isKeyframe ? shot.keyframePrompt : shot.videoPrompt;
+  if (isKeyframe && styleAsset?.prompt?.trim()) {
+    prompt = `${prompt}\n\nVisual style (apply consistently): ${styleAsset.prompt.trim()}`;
+  }
+
+  const libraryRefs: Array<{ type: "character" | "locations" | "style"; identifier: string; creationId?: string }> = [
+    ...charRefs,
+  ];
+  // Location only on the keyframe (image) — video can't take a location ref.
+  if (isKeyframe && locAsset?.type === "location" && locAsset.magnificIdentifier) {
+    libraryRefs.push({ type: "locations", identifier: locAsset.magnificIdentifier });
+  }
 
   // Video uses the storyboard keyframe as its start frame — pass the keyframe's
   // Magnific creation identifier (Magnific can't reach our local file URL).
@@ -104,12 +138,6 @@ export async function runShotGeneration(
     if (shot.videoRefMode) params.imageRefMode = shot.videoRefMode;
   }
   if (opts.parallel) params.parallel = true;
-
-  // Visual consistency: every shot references the cast members promoted to the
-  // Magnific Library (so the same character looks the same across the short).
-  const libraryRefs = project.story.characters
-    .filter((c) => c.libraryId)
-    .map((c) => ({ type: "character" as const, identifier: c.libraryId! }));
 
   const req: GenerationRequest = {
     kind: opts.kind,
@@ -295,6 +323,180 @@ export async function runAudio(
       }
     });
   }
+}
+
+/**
+ * Generate the preview image for one Library asset (character/location) applying
+ * the global visual style, then auto-save it to the Magnific Library so it
+ * becomes a reusable reference. Mutates the asset (thumbnail + magnificIdentifier).
+ */
+async function generateOneAssetPreview(api: RunnerApi, assetId: string, styleText?: string): Promise<void> {
+  const asset = api.project.library?.find((a) => a.id === assetId);
+  if (!asset?.prompt) return;
+  const now = Date.now();
+  const prompt = styleText ? `${asset.prompt}\n\nVisual style (apply consistently): ${styleText}` : asset.prompt;
+
+  api.update((d) => {
+    const a = d.library?.find((x) => x.id === assetId);
+    if (a) a.job = jobAt(now, { kind: "image", status: "queued", mode: "mcp_default", transportLabel: "McpTransport", progress: 5 });
+  });
+
+  let result;
+  try {
+    result = await api.generation.generate({ kind: "image", prompt, model: "auto" }, ({ progress, status }) => {
+      api.update((d) => {
+        const j = d.library?.find((x) => x.id === assetId)?.job;
+        if (!j || j.status === "ready" || j.status === "failed") return;
+        j.status = status === "ready" ? "rendering" : status;
+        j.progress = Math.max(j.progress, Math.min(99, progress));
+        j.updatedAt = Date.now();
+      });
+    });
+  } catch (e) {
+    api.update((d) => {
+      const a = d.library?.find((x) => x.id === assetId);
+      if (a) a.job = jobAt(now, { kind: "image", status: "failed", error: e instanceof Error ? e.message : String(e) });
+    });
+    return;
+  }
+
+  api.update((d) => {
+    const a = d.library?.find((x) => x.id === assetId);
+    if (!a) return;
+    a.job = jobAt(now, { kind: "image", status: result!.ok ? "ready" : "failed", progress: 100, resultUrl: result!.resultUrl, taskId: result!.taskId, error: result!.error });
+    if (result!.ok && result!.resultUrl) {
+      // Cover image. Reset the reference set to this single image.
+      a.thumbnailUrl = result!.resultUrl;
+      a.images = [result!.resultUrl];
+      a.creationIds = result!.taskId ? [result!.taskId] : [];
+    }
+  });
+
+  if (result.ok && (asset.type === "character" || asset.type === "location")) {
+    await saveAssetToLibrary(api, assetId);
+  }
+}
+
+/**
+ * (Re)create the Magnific Library entry for an asset from ALL its reference
+ * images (cover + character sheet / environment grid views, up to 6) and store
+ * the resulting library identifier. Richer references → better consistency.
+ */
+async function saveAssetToLibrary(api: RunnerApi, assetId: string): Promise<void> {
+  const asset = api.project.library?.find((a) => a.id === assetId);
+  if (!asset || (asset.type !== "character" && asset.type !== "location")) return;
+  const ids = (asset.creationIds ?? []).filter(Boolean).slice(0, 6);
+  if (ids.length === 0) return;
+  try {
+    const res = await fetch(`${config.directorBase}/library-create`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        name: asset.name,
+        type: asset.type === "location" ? "locations" : "character",
+        description: asset.description || undefined,
+        images: ids.map((creationIdentifier) => ({ creationIdentifier })),
+      }),
+    });
+    const data = (await res.json()) as { ok: boolean; identifier?: string };
+    if (data.ok && data.identifier) {
+      api.update((d) => {
+        const a = d.library?.find((x) => x.id === assetId);
+        if (a) a.magnificIdentifier = String(data.identifier);
+      });
+    }
+  } catch {
+    /* keep the local images even if saving the library ref fails */
+  }
+}
+
+/**
+ * Generate a CHARACTER SHEET (multiple views/expressions) or an ENVIRONMENT 3×3
+ * GRID (viewpoints) as an extra reference image, applying the global style, and
+ * re-save the library entry so the asset carries richer references.
+ */
+export async function generateAssetSheet(api: RunnerApi, assetId: string): Promise<void> {
+  const asset = api.project.library?.find((a) => a.id === assetId);
+  if (!asset || (asset.type !== "character" && asset.type !== "location")) return;
+  const lib = api.project.library ?? [];
+  const styleText = api.project.styleId ? lib.find((a) => a.id === api.project.styleId)?.prompt?.trim() : undefined;
+  const base =
+    asset.type === "character"
+      ? characterSheetPrompt(asset.name, asset.description ?? "")
+      : environmentGridPrompt(asset.name, asset.description ?? "");
+  const prompt = styleText ? `${base}\n\nVisual style (apply consistently): ${styleText}` : base;
+  const now = Date.now();
+
+  api.update((d) => {
+    const a = d.library?.find((x) => x.id === assetId);
+    if (a) a.sheetJob = jobAt(now, { kind: "image", status: "queued", mode: "mcp_default", transportLabel: "McpTransport", progress: 5 });
+  });
+
+  let result;
+  try {
+    result = await api.generation.generate({ kind: "image", prompt, model: "auto" }, ({ progress, status }) => {
+      api.update((d) => {
+        const j = d.library?.find((x) => x.id === assetId)?.sheetJob;
+        if (!j || j.status === "ready" || j.status === "failed") return;
+        j.status = status === "ready" ? "rendering" : status;
+        j.progress = Math.max(j.progress, Math.min(99, progress));
+        j.updatedAt = Date.now();
+      });
+    });
+  } catch (e) {
+    api.update((d) => {
+      const a = d.library?.find((x) => x.id === assetId);
+      if (a) a.sheetJob = jobAt(now, { kind: "image", status: "failed", error: e instanceof Error ? e.message : String(e) });
+    });
+    return;
+  }
+
+  api.update((d) => {
+    const a = d.library?.find((x) => x.id === assetId);
+    if (!a) return;
+    a.sheetJob = jobAt(now, { kind: "image", status: result!.ok ? "ready" : "failed", progress: 100, resultUrl: result!.resultUrl, taskId: result!.taskId, error: result!.error });
+    if (result!.ok && result!.resultUrl) {
+      a.images = [...(a.images ?? []), result!.resultUrl];
+      if (result!.taskId) a.creationIds = [...(a.creationIds ?? []), result!.taskId];
+    }
+  });
+
+  if (result.ok) await saveAssetToLibrary(api, assetId);
+}
+
+/** Generate (or regenerate) the preview of a single asset, applying the style. */
+export async function generateAssetPreview(api: RunnerApi, assetId: string): Promise<void> {
+  const lib = api.project.library ?? [];
+  const styleText = api.project.styleId
+    ? lib.find((a) => a.id === api.project.styleId)?.prompt?.trim()
+    : undefined;
+  await generateOneAssetPreview(api, assetId, styleText);
+}
+
+/**
+ * Generate previews for all character/location assets that don't have an image
+ * yet, applying the global style for visual consistency. Auto-saves each to the
+ * Magnific Library. Used by Historia after developing the story.
+ */
+export async function generateAssetPreviews(
+  api: RunnerApi,
+  onProgress?: (done: number, total: number) => void,
+): Promise<void> {
+  const lib = api.project.library ?? [];
+  const styleText = api.project.styleId
+    ? lib.find((a) => a.id === api.project.styleId)?.prompt?.trim()
+    : undefined;
+  const targets = lib.filter(
+    (a) => (a.type === "character" || a.type === "location") && !a.thumbnailUrl,
+  );
+  let done = 0;
+  onProgress?.(done, targets.length);
+  await runBatched(targets, 3, async (asset) => {
+    await generateOneAssetPreview(api, asset.id, styleText);
+    done += 1;
+    onProgress?.(done, targets.length);
+  });
 }
 
 /**

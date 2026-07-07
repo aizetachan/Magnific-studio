@@ -48,6 +48,8 @@ export interface Character {
   photoUrl?: string;
   /** library_create identifier when promoted to the shared library. */
   libraryId?: string;
+  /** Linked Library asset (local id) that holds this character's visual ref. */
+  libraryAssetId?: string;
 }
 
 export interface Arc {
@@ -71,6 +73,10 @@ export interface Scene {
   dialogue: string;
   /** Estimated screen duration in seconds (used by "ajustar ritmo"). */
   durationSec: number;
+  /** Library location asset id for this scene's environment (consistency). */
+  locationId?: string;
+  /** Library character asset ids that appear in this scene (consistency). */
+  characterIds?: string[];
 }
 
 /**
@@ -94,6 +100,11 @@ export interface Shot {
   keyframeJob?: Job;
   keyframeCreditsEstimate: number;
   approvedKeyframe: boolean;
+
+  // --- Reference overrides (consistency) ---
+  // When set, override the scene's assignment for THIS shot; undefined = inherit.
+  locationId?: string;
+  characterIds?: string[];
 
   // --- Production (video) ---
   videoPrompt: string;
@@ -188,13 +199,31 @@ export interface Consumption {
   events: ConsumptionEvent[];
 }
 
+/**
+ * A reusable reference asset in the project's Library: a character, an
+ * environment (location), a global visual style, or a product. Created via the
+ * Magnific MCP (generate → save) and applied at generation for consistency.
+ */
 export interface LibraryAsset {
   id: string;
-  type: "character" | "location" | "style" | "element";
+  type: "character" | "location" | "style" | "element" | "product";
   name: string;
+  description?: string;
+  /** Prompt used to generate the asset image (when created via MCP). */
+  prompt?: string;
+  /** Local thumbnail (downloaded; survives Magnific URL expiry). Cover = images[0]. */
   thumbnailUrl?: string;
-  /** Mirrors Magnific library entry identifier when synced. */
+  /** All reference images (local urls); [0] is the cover. Extra ones = sheet/grid views. */
+  images?: string[];
+  /** Magnific creation identifiers parallel to `images` (used to (re)build the library entry). */
+  creationIds?: string[];
+  /** Magnific library entry identifier — passed as-is in generation references. */
   magnificIdentifier?: string;
+  /** In-flight generation job while the asset image is being produced. */
+  job?: Job;
+  /** In-flight job for the character sheet / environment 3×3 grid. */
+  sheetJob?: Job;
+  createdAt?: number;
 }
 
 export interface Settings {
@@ -232,6 +261,8 @@ export interface Project {
   edit?: Timeline;
   consumption: Consumption;
   library: LibraryAsset[];
+  /** Global visual style applied to every scene (a library "style" asset id). */
+  styleId?: string;
   settings: Settings;
   gates: Gates;
 }
