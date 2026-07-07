@@ -9,6 +9,12 @@
 
 import type { Job, Project } from "@/types/project";
 import { uid } from "./seed";
+import {
+  localDirStatus,
+  projectJsonPath,
+  readLocalFile,
+  writeLocalFile,
+} from "./localdir";
 
 const PREFIX = "magnific-studio:project:";
 const LAST = "magnific-studio:last";
@@ -190,6 +196,27 @@ export function saveProject(p: Project): void {
     localStorage.setItem(LAST, p.id);
   } catch {
     // Quota exceeded or serialization issue — keep the app working regardless.
+  }
+  // Mirror to the user's working folder (local-first: content lives on their
+  // machine, never on the server). Fire-and-forget; localStorage is the cache.
+  if (localDirStatus() === "ready") {
+    void writeLocalFile(
+      projectJsonPath(p.id),
+      JSON.stringify(sanitize(p), null, 2),
+    );
+  }
+}
+
+/** Load a project from the linked working folder (durable local copy). */
+export async function loadProjectFromDir(id: string): Promise<Project | null> {
+  if (localDirStatus() !== "ready") return null;
+  try {
+    const file = await readLocalFile(projectJsonPath(id));
+    if (!file) return null;
+    const p = JSON.parse(await file.text()) as Project;
+    return p?.id ? p : null;
+  } catch {
+    return null;
   }
 }
 

@@ -19,9 +19,11 @@ import { createBlankProject, uid } from "./seed";
 import {
   currentProjectId,
   loadProject,
+  loadProjectFromDir,
   saveProject,
   setUrlProject,
 } from "./persistence";
+import { initLocalDir } from "./localdir";
 import { getCredentials, subscribeCredentials } from "./credentials";
 
 /**
@@ -121,11 +123,32 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     [],
   );
 
-  // Autosave to this machine's localStorage (debounced to avoid thrashing).
+  // Autosave to this machine's localStorage + the linked working folder
+  // (debounced to avoid thrashing). The event feeds the unsaved-changes guard.
   useEffect(() => {
-    const t = setTimeout(() => saveProject(project), 400);
+    const t = setTimeout(() => {
+      saveProject(project);
+      window.dispatchEvent(new Event("ms:project-saved"));
+    }, 400);
     return () => clearTimeout(t);
   }, [project]);
+
+  // Local-first recovery: if this browser's localStorage doesn't know the
+  // project (fresh browser, cleared site data) but the linked working folder
+  // has it, load the folder copy once the directory handle is restored.
+  useEffect(() => {
+    let alive = true;
+    void initLocalDir().then(async () => {
+      const id = currentProjectId();
+      if (!id || loadProject(id)) return; // localStorage already has it
+      const fromDisk = await loadProjectFromDir(id);
+      if (alive && fromDisk) setProject(applyCreds(fromDisk));
+    });
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const update = useCallback((mut: (draft: Project) => void) => {
     setProject((prev) => {
@@ -159,6 +182,8 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     const safe = structuredClone(project) as Project;
     safe.settings.anthropicApiKey = "";
     safe.settings.magnificApiKey = "";
+    // Counts as "took a copy" for the unsaved-changes guard (fallback mode).
+    window.dispatchEvent(new Event("ms:exported"));
     return JSON.stringify(safe, null, 2);
   }, [project]);
 

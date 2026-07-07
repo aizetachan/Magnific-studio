@@ -21,6 +21,7 @@ import { HeaderActions } from "@/components/Topbar";
 import { Director } from "@/director/Director";
 import { LibraryPage } from "@/blocks/library/LibraryPage";
 import { HomeShell } from "@/home/HomeShell";
+import { WorkdirGate } from "@/components/WorkdirGate";
 
 /** Per-phase header metadata (icon + description + the gate that unlocks next). */
 const PHASE_META: Record<
@@ -162,7 +163,12 @@ export function App() {
   const activeBlock = blocks[store.activePhase];
 
   if (view === "home") {
-    return <HomeShell onEnterStudio={() => setView("studio")} />;
+    return (
+      <>
+        <WorkdirGate />
+        <HomeShell onEnterStudio={() => setView("studio")} />
+      </>
+    );
   }
 
   const meta = PHASE_META[store.activePhase];
@@ -177,6 +183,7 @@ export function App() {
     <ActiveBlockContext.Provider value={activeBlock}>
       <LeadSlotContext.Provider value={leadSlot}>
       <div className="app">
+        <WorkdirGate />
         <OAuthBanner />
         <ConnectionBanner />
         <Sidebar
