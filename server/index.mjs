@@ -480,12 +480,11 @@ async function advanceJob(jobId, job) {
       /* keep what we have */
     }
     job.credits = credits;
-    try {
-      job.resultUrl = await localizeAsset(jobId, c.url);
-    } catch (e) {
-      job.resultUrl = c.url;
-      job.note = `no se pudo guardar localmente: ${String(e?.message ?? e)}`;
-    }
+    // Local-first: the server never stores content. Keep Magnific's signed URL
+    // and hand the client a one-shot streaming proxy; the browser saves the
+    // bytes on the user's machine. (The proxy re-resolves if the URL expires.)
+    job.assetUrl = c.url;
+    job.resultUrl = `/api/director/asset?job=${encodeURIComponent(jobId)}`;
     console.log(`[poll] ${jobId} ready credits=${credits} model=${job.model ?? "?"}`);
     persistJobs();
   } else if (c.status === "failed") {
@@ -691,6 +690,12 @@ async function handle(req, res) {
   if (req.method === "GET" && path === "/api/director/mcp-status") {
     const jobId = url.searchParams.get("job");
     if (!jobId) return json(res, 400, { ok: false, error: "job required" });
+    // Session-scoped: a session can only observe its own jobs (legacy jobs
+    // created before scoping have no sid and stay reachable).
+    const owned = jobs.get(jobId);
+    if (owned?.sid && owned.sid !== getCookie(req, "msid")) {
+      return json(res, 200, { ok: false, status: "failed", error: "unknown job" });
+    }
     try {
       return json(res, 200, await pollJob(jobId));
     } catch (e) {
@@ -701,6 +706,58 @@ async function handle(req, res) {
         note: e instanceof Error ? e.message : String(e),
       });
     }
+  }
+
+  // One-shot streaming proxy for a finished job's asset (local-first: the
+  // server never stores content — it pipes Magnific's bytes to the browser,
+  // which saves them on the user's machine). Session-scoped: only the session
+  // that started the job can fetch it. Re-resolves the URL if it expired.
+  if (req.method === "GET" && path === "/api/director/asset") {
+    const jobId = url.searchParams.get("job");
+    const job = jobId ? jobs.get(jobId) : undefined;
+    const sid = getCookie(req, "msid");
+    if (!job || (job.sid && job.sid !== sid)) {
+      return json(res, 404, { ok: false, error: "unknown job" });
+    }
+    if (job.status !== "ready" || !job.assetUrl) {
+      return json(res, 409, { ok: false, error: "asset not ready" });
+    }
+    cors(res);
+    const pipeFrom = async (assetUrl) => {
+      const upstream = await fetch(assetUrl);
+      if (!upstream.ok || !upstream.body) return upstream.status;
+      res.writeHead(200, {
+        "content-type": upstream.headers.get("content-type") ?? "application/octet-stream",
+        ...(upstream.headers.get("content-length")
+          ? { "content-length": upstream.headers.get("content-length") }
+          : {}),
+        "cache-control": "no-store",
+      });
+      const { Readable } = await import("node:stream");
+      Readable.fromWeb(upstream.body).pipe(res);
+      return 200;
+    };
+    let status = await pipeFrom(job.assetUrl).catch(() => 0);
+    if (status !== 200 && !res.headersSent) {
+      // Signed URL likely expired — resolve a fresh one from the creation.
+      try {
+        const token = await tokenFor(job.sid);
+        const fresh = token
+          ? await creationAssetUrlWait(MCP_URL, token, job.identifiers[0])
+          : undefined;
+        if (fresh) {
+          job.assetUrl = fresh;
+          persistJobs();
+          status = await pipeFrom(fresh);
+        }
+      } catch {
+        /* fall through to 502 */
+      }
+      if (status !== 200 && !res.headersSent) {
+        return json(res, 502, { ok: false, error: "no se pudo descargar el asset" });
+      }
+    }
+    return;
   }
 
   // Serve a locally-stored generated asset (durable; replaces expiring URLs).

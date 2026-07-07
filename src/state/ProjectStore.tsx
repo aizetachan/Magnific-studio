@@ -23,7 +23,8 @@ import {
   saveProject,
   setUrlProject,
 } from "./persistence";
-import { initLocalDir } from "./localdir";
+import { initLocalDir, localDirStatus, subscribeLocalDir } from "./localdir";
+import { hydrateAssetRefs, preloadLocalAssets } from "./assets";
 import { getCredentials, subscribeCredentials } from "./credentials";
 
 /**
@@ -133,22 +134,42 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     return () => clearTimeout(t);
   }, [project]);
 
-  // Local-first recovery: if this browser's localStorage doesn't know the
-  // project (fresh browser, cleared site data) but the linked working folder
-  // has it, load the folder copy once the directory handle is restored.
+  // Local-first: (a) recover the project from the linked working folder when
+  // this browser's localStorage doesn't have it, and (b) hydrate local:assets
+  // refs into runtime blob: URLs once their bytes are available (folder or
+  // IndexedDB). Re-runs when the folder becomes ready (permission re-grant).
+  const projectRef = useRef(project);
+  projectRef.current = project;
   useEffect(() => {
     let alive = true;
+    const hydrate = async () => {
+      await preloadLocalAssets(projectRef.current);
+      if (!alive) return;
+      setProject((prev) => {
+        const clone = structuredClone(prev) as Project;
+        return hydrateAssetRefs(clone) ? clone : prev;
+      });
+    };
     void initLocalDir().then(async () => {
       const id = currentProjectId();
-      if (!id || loadProject(id)) return; // localStorage already has it
-      const fromDisk = await loadProjectFromDir(id);
-      if (alive && fromDisk) setProject(applyCreds(fromDisk));
+      if (id && !loadProject(id)) {
+        const fromDisk = await loadProjectFromDir(id);
+        if (alive && fromDisk) {
+          setProject(applyCreds(fromDisk));
+          projectRef.current = fromDisk;
+        }
+      }
+      await hydrate();
+    });
+    const unsub = subscribeLocalDir(() => {
+      if (localDirStatus() === "ready") void hydrate();
     });
     return () => {
       alive = false;
+      unsub();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [project.id]);
 
   const update = useCallback((mut: (draft: Project) => void) => {
     setProject((prev) => {

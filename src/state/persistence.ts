@@ -15,6 +15,7 @@ import {
   readLocalFile,
   writeLocalFile,
 } from "./localdir";
+import { dehydrateAssetRefs } from "./assets";
 
 const PREFIX = "magnific-studio:project:";
 const LAST = "magnific-studio:last";
@@ -45,9 +46,11 @@ function settledOnly(job?: Job): Job | undefined {
   return job;
 }
 
-/** A copy safe to persist: no secrets, no half-finished jobs. */
+/** A copy safe to persist: no secrets, no half-finished jobs, no blob: URLs. */
 function sanitize(p: Project): Project {
   const safe = structuredClone(p) as Project;
+  // Swap volatile blob: object URLs for stable local:assets/<file> refs.
+  dehydrateAssetRefs(safe);
   safe.settings.anthropicApiKey = "";
   safe.settings.magnificApiKey = "";
   for (const s of safe.shots) {

@@ -2,6 +2,8 @@ import type { GenerationKind, GenerationRequest } from "@/types/generation";
 import type { Job, PhaseId, Project, Shot } from "@/types/project";
 import type { GenerationBlock } from "@/generation/GenerationBlock";
 import { config } from "@/config";
+import { materializeAsset } from "@/state/assets";
+import { absDirectorUrl } from "@/generation/transports/McpTransport";
 import { characterSheetPrompt, environmentGridPrompt } from "@/director/generate";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -539,17 +541,21 @@ async function resumePollAudio(api: RunnerApi, trackId: string, backendJobId: st
       continue;
     }
     if (data.status === "ready") {
+      // Local-first: store the bytes on the user's machine, use the blob: URL.
+      const localUrl = data.resultUrl
+        ? await materializeAsset(backendJobId, absDirectorUrl(data.resultUrl))
+        : undefined;
       api.update((d) => {
         const t = d.audio?.find((x) => x.id === trackId);
         if (!t?.job) return;
         t.job.status = "ready";
         t.job.progress = 100;
-        t.job.resultUrl = data.resultUrl;
+        t.job.resultUrl = localUrl;
         t.job.creditsCharged = data.credits;
         t.job.taskId = data.identifier ?? t.job.taskId;
         t.job.updatedAt = Date.now();
-        if (data.resultUrl) {
-          t.url = data.resultUrl;
+        if (localUrl) {
+          t.url = localUrl;
           t.credits = data.credits;
         }
       });
@@ -611,20 +617,24 @@ async function resumePoll(
     }
 
     if (data.status === "ready") {
+      // Local-first: store the bytes on the user's machine, use the blob: URL.
+      const localUrl = data.resultUrl
+        ? await materializeAsset(backendJobId, absDirectorUrl(data.resultUrl))
+        : undefined;
       api.update((d) => {
         const s = d.shots.find((x) => x.id === shotId);
         const j = s?.[jobField];
         if (!s || !j) return;
         j.status = "ready";
         j.progress = 100;
-        j.resultUrl = data.resultUrl;
+        j.resultUrl = localUrl;
         j.creditsCharged = data.credits;
         j.taskId = data.identifier ?? j.taskId;
         j.updatedAt = Date.now();
-        if (data.resultUrl) {
-          (s as Shot)[urlField] = data.resultUrl;
+        if (localUrl) {
+          (s as Shot)[urlField] = localUrl;
           const hist = s[histField] ?? [];
-          if (!hist.includes(data.resultUrl)) hist.push(data.resultUrl);
+          if (!hist.includes(localUrl)) hist.push(localUrl);
           s[histField] = hist;
           if (data.model) (s as Shot)[modelField] = data.model;
         }
