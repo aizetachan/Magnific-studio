@@ -9,7 +9,7 @@ import {
   totals,
 } from "@/state/consumption";
 
-const MODELS = ["claude-opus-4-8", "claude-sonnet-4-6", "claude-haiku-4-5"];
+const MODELS = ["claude-fable-5", "claude-opus-4-8", "claude-sonnet-4-6", "claude-haiku-4-5"];
 
 /**
  * Settings (§5.3) — connect your own Anthropic API key, see exactly what you
