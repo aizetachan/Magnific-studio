@@ -11,21 +11,17 @@ STATE_FILE=".deploy-state"
 
 cd "$(dirname "$0")/.."
 
-echo "== 1/7 APIs =="
+echo "== 1/7 Facturación (antes que las APIs de pago) =="
 gcloud config set project "$PROJECT" -q
+BILLING_ACCOUNT="${BILLING_ACCOUNT:-billingAccounts/01E668-2F66FB-DB8E99}" # My Billing Account
+if ! gcloud billing projects describe "$PROJECT" --format="value(billingEnabled)" | grep -q True; then
+  gcloud billing projects link "$PROJECT" --billing-account="$BILLING_ACCOUNT"
+fi
+
+echo "== 2/7 APIs =="
 gcloud services enable firestore.googleapis.com firebasedatabase.googleapis.com \
   identitytoolkit.googleapis.com run.googleapis.com cloudbuild.googleapis.com \
   artifactregistry.googleapis.com -q
-
-echo "== 2/7 Facturación =="
-if ! gcloud billing projects describe "$PROJECT" --format="value(billingEnabled)" | grep -q True; then
-  ACCOUNT=$(gcloud billing accounts list --filter=open=true --format="value(name)" | head -1)
-  if [ -z "$ACCOUNT" ]; then
-    echo "ERROR: no hay cuenta de facturación abierta. Créala en https://console.cloud.google.com/billing" >&2
-    exit 1
-  fi
-  gcloud billing projects link "$PROJECT" --billing-account="$ACCOUNT"
-fi
 
 echo "== 3/7 Firestore + Realtime Database =="
 gcloud firestore databases describe --database="(default)" >/dev/null 2>&1 ||
