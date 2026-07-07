@@ -105,6 +105,18 @@ function register(ref: string, blob: Blob): string {
   return u;
 }
 
+/** Store an in-memory blob on the user's machine; returns its object URL. */
+export async function storeAssetBlob(
+  name: string,
+  blob: Blob,
+  fallbackExt = ".bin",
+): Promise<string> {
+  const ext = extForType(blob.type) || fallbackExt;
+  const path = `assets/${name}${ext}`;
+  await persistBlob(path, blob).catch(() => {});
+  return register(`${LOCAL_PREFIX}${path}`, blob);
+}
+
 /**
  * Download a generated asset ONCE and store it on the user's machine; returns
  * the runtime object URL to use in the app. On failure, returns the source
@@ -118,12 +130,9 @@ export async function materializeAsset(
     const res = await fetch(srcUrl, { credentials: "include" });
     if (!res.ok) throw new Error(`asset ${res.status}`);
     const blob = await res.blob();
-    const ext =
-      extForType(blob.type) ||
-      (srcUrl.split("?")[0].match(/(\.[a-z0-9]{2,5})$/i)?.[1] ?? ".bin");
-    const path = `assets/${name}${ext}`;
-    await persistBlob(path, blob).catch(() => {});
-    return register(`${LOCAL_PREFIX}${path}`, blob);
+    const fallbackExt =
+      srcUrl.split("?")[0].match(/(\.[a-z0-9]{2,5})$/i)?.[1] ?? ".bin";
+    return await storeAssetBlob(name, blob, fallbackExt);
   } catch {
     return srcUrl;
   }

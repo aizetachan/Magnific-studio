@@ -18,8 +18,9 @@
 //   MAGNIFIC_OAUTH_SCOPE (optional)
 
 import { createServer } from "node:http";
-import { randomBytes } from "node:crypto";
-import { mkdir, writeFile } from "node:fs/promises";
+import { createHash, randomBytes } from "node:crypto";
+import { mkdir, writeFile, stat } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import {
   createReadStream,
   existsSync,
@@ -551,6 +552,15 @@ async function sweep() {
   }
 }
 
+// Ephemeral render workspace under /tmp, scoped per session so another session
+// can't read or inject inputs. Deleted after each render.
+const MAX_CONCURRENT_RENDERS = 1;
+let renderBusy = 0;
+function renderDirFor(sid, rid) {
+  const scope = createHash("sha256").update(String(sid ?? "anon")).digest("hex").slice(0, 12);
+  return join(tmpdir(), `ms_render_${scope}_${rid}`);
+}
+
 // Never let an uncaught error take the process down (would 500 every request).
 process.on("unhandledRejection", (e) => console.error("[unhandledRejection]", e));
 process.on("uncaughtException", (e) => console.error("[uncaughtException]", e));
@@ -834,6 +844,44 @@ async function handle(req, res) {
     return json(res, 200, { ok: true, ffmpeg: await hasFfmpeg() });
   }
 
+  // Ephemeral render input upload (local-first): the browser holds the clip
+  // bytes, so it uploads each input to a per-session /tmp dir before /render.
+  // Raw binary body; capped size; the whole dir is deleted after the render.
+  if (req.method === "POST" && path === "/api/director/render-input") {
+    const sid = getCookie(req, "msid");
+    const rid = url.searchParams.get("render") ?? "";
+    const name = basename(url.searchParams.get("name") ?? "");
+    if (!sid) return json(res, 401, { ok: false, error: "sesión requerida" });
+    if (!/^[a-z0-9]{6,32}$/.test(rid) || !name) {
+      return json(res, 400, { ok: false, error: "render id o name inválido" });
+    }
+    const dir = renderDirFor(sid, rid);
+    await mkdir(dir, { recursive: true });
+    try {
+      await new Promise((resolvep, rejectp) => {
+        const MAX = 300 * 1024 * 1024; // 300 MB per input
+        let size = 0;
+        const chunks = [];
+        req.on("data", (c) => {
+          size += c.length;
+          if (size > MAX) {
+            req.destroy();
+            rejectp(new Error("input demasiado grande (máx 300MB)"));
+            return;
+          }
+          chunks.push(c);
+        });
+        req.on("end", () => {
+          writeFile(join(dir, name), Buffer.concat(chunks)).then(resolvep, rejectp);
+        });
+        req.on("error", rejectp);
+      });
+      return json(res, 200, { ok: true });
+    } catch (e) {
+      return json(res, 200, { ok: false, error: e instanceof Error ? e.message : String(e) });
+    }
+  }
+
   // Local timeline render with ffmpeg (trim + concat + voice/music mux).
   if (req.method === "POST" && path === "/api/director/render") {
     try {
@@ -844,6 +892,59 @@ async function handle(req, res) {
         });
       }
       const body = await readBody(req);
+
+      // New ephemeral mode: inputs were uploaded to /tmp via /render-input;
+      // render there, STREAM the mp4 back, and delete everything. The server
+      // keeps no content.
+      if (body.render) {
+        if (renderBusy >= MAX_CONCURRENT_RENDERS) {
+          return json(res, 200, { ok: false, error: "Hay un render en curso; prueba en unos segundos." });
+        }
+        renderBusy++;
+        const sid = getCookie(req, "msid");
+        const dir = renderDirFor(sid, String(body.render));
+        try {
+          const fileIn = (f) => {
+            const p = join(dir, basename(String(f ?? "")));
+            if (!existsSync(p)) throw new Error(`falta el input ${f}`);
+            return p;
+          };
+          const clips = (body.clips ?? []).map((c) => ({
+            path: fileIn(c.file),
+            inSec: c.inSec,
+            outSec: c.outSec,
+            mute: !!c.mute,
+          }));
+          if (clips.length === 0) return json(res, 200, { ok: false, error: "No hay clips para ensamblar" });
+          const audio = (body.audio ?? []).map((a) => ({
+            path: fileIn(a.file),
+            offsetSec: a.offsetSec,
+            volume: a.volume,
+            inSec: a.inSec,
+            outSec: a.outSec,
+          }));
+          const outPath = join(dir, "final.mp4");
+          console.log(`[render] efímero: ${clips.length} clips, ${audio.length} pistas`);
+          await renderTimeline({ clips, audio, muteVideo: !!body.muteVideo }, { workDir: join(dir, "work"), outPath });
+          cors(res);
+          const total = (await stat(outPath)).size;
+          res.writeHead(200, {
+            "content-type": "video/mp4",
+            "content-length": total,
+            "cache-control": "no-store",
+          });
+          await new Promise((done) => {
+            const s = createReadStream(outPath);
+            s.pipe(res);
+            s.on("close", done);
+            s.on("error", done);
+          });
+          return;
+        } finally {
+          renderBusy--;
+          void cleanupDir(dir);
+        }
+      }
       // Map served/remote urls → local file paths the renderer can read.
       const toLocal = async (urlOrPath) => {
         if (!urlOrPath) return undefined;
