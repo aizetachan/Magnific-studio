@@ -138,6 +138,26 @@ export async function materializeAsset(
   }
 }
 
+/** Read a stored asset's bytes by its local ref path (for the Share relay). */
+export async function loadLocalBlob(refPath: string): Promise<Blob | null> {
+  const path = refPath.startsWith(LOCAL_PREFIX)
+    ? refPath.slice(LOCAL_PREFIX.length)
+    : refPath;
+  return loadBlob(path);
+}
+
+/** Store an asset that arrived from a peer (Share) under its original path. */
+export async function registerIncomingAsset(
+  refPath: string,
+  blob: Blob,
+): Promise<void> {
+  const path = refPath.startsWith(LOCAL_PREFIX)
+    ? refPath.slice(LOCAL_PREFIX.length)
+    : refPath;
+  await persistBlob(path, blob).catch(() => {});
+  register(`${LOCAL_PREFIX}${path}`, blob);
+}
+
 // --- Persistence-boundary transforms (deep string walk, mutating) ---
 
 function walk(node: unknown, fn: (s: string) => string): void {

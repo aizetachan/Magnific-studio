@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import { IconDownload, IconFileZip, IconUpload } from "@tabler/icons-react";
 import { useStore } from "@/state/ProjectStore";
+import { ShareControls } from "@/share/ShareControls";
 import { downloadAllZip } from "@/state/download";
 import { exportBundle, importBundle } from "@/state/bundle";
 
@@ -59,6 +60,7 @@ export function HeaderActions() {
 
   return (
     <div className="header-actions">
+      <ShareControls />
       <button
         className="icon-btn"
         disabled={zipping}

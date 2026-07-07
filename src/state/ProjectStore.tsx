@@ -25,6 +25,7 @@ import {
 } from "./persistence";
 import { initLocalDir, localDirStatus, subscribeLocalDir } from "./localdir";
 import { hydrateAssetRefs, preloadLocalAssets } from "./assets";
+import { useShareSync } from "@/share/useShareSync";
 import { getCredentials, subscribeCredentials } from "./credentials";
 
 /**
@@ -170,6 +171,9 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [project.id]);
+
+  // Realtime collaboration: bind to the project's RTDB room when shared.
+  useShareSync(project, setProject);
 
   const update = useCallback((mut: (draft: Project) => void) => {
     setProject((prev) => {

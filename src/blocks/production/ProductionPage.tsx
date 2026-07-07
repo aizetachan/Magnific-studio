@@ -23,6 +23,7 @@ import {
 import { downloadAsset } from "@/state/download";
 import { runBatched, runShotGeneration } from "../runner";
 import type { Scene, Shot } from "@/types/project";
+import { LockableTextarea } from "@/share/LockableTextarea";
 
 export function ProductionPage() {
   const store = useStore();
@@ -243,7 +244,8 @@ export function ProductionPage() {
                         <span className="tag">Plano {shot.order}</span>
                       </div>
                       <div className="prod-card__body">
-                        <textarea
+                        <LockableTextarea
+                          lockPath={`shot:${shot.id}:videoPrompt`}
                           className="kf__prompt"
                           value={shot.videoPrompt}
                           onChange={(e) =>

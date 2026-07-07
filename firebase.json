@@ -9,5 +9,7 @@
       },
       { "source": "**", "destination": "/index.html" }
     ]
-  }
+  },
+  "database": { "rules": "database.rules.json" },
+  "firestore": { "rules": "firestore.rules" }
 }

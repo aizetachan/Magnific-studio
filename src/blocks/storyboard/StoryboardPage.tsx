@@ -29,6 +29,7 @@ import { assignReferences } from "@/director/generate";
 import { runBatched, runShotGeneration } from "../runner";
 import { IconSparkles, IconWand } from "@tabler/icons-react";
 import type { Shot } from "@/types/project";
+import { LockableTextarea } from "@/share/LockableTextarea";
 
 export function StoryboardPage() {
   const store = useStore();
@@ -344,7 +345,8 @@ export function StoryboardPage() {
                       etaSec={expectedSecFor("image", shot.imageModel)}
                     />
                   </div>
-                  <textarea
+                  <LockableTextarea
+                    lockPath={`shot:${shot.id}:keyframePrompt`}
                     className="kf__prompt"
                     value={shot.keyframePrompt}
                     onChange={(e) =>

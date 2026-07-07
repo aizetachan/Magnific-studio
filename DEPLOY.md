@@ -12,6 +12,9 @@ Anthropic (directa navegador → Anthropic, nunca pasa por el servidor).
 1. Crea un proyecto en https://console.firebase.google.com
 2. **Authentication** → Sign-in method → habilita **Google**.
 3. Registra una app web y copia la config (apiKey, authDomain, projectId, appId).
+4. Para el **Share en tiempo real** (Fase 0.5): crea una **Realtime Database**
+   (copia su URL) y una base **Firestore**, y despliega las reglas del repo:
+   `firebase deploy --only database,firestore:rules`.
 
 ## 2. Backend en Cloud Run
 
@@ -49,6 +52,7 @@ VITE_FIREBASE_API_KEY=...
 VITE_FIREBASE_AUTH_DOMAIN=<proj>.firebaseapp.com
 VITE_FIREBASE_PROJECT_ID=<proj>
 VITE_FIREBASE_APP_ID=...
+VITE_FIREBASE_DATABASE_URL=https://<proj>-default-rtdb.<region>.firebasedatabase.app
 ```
 
 Sin las `VITE_FIREBASE_*` la app corre en modo dev (sin login) — igual que
@@ -63,9 +67,24 @@ en local con `npm run dev`.
   inputs de render capados a 300MB y borrados tras cada render.
 - `.dockerignore` excluye `storage/` (contenido y tokens locales del owner).
 
+## Cómo funciona el Share (Fase 0.5)
+
+- «Compartir» (icono de personas en la cabecera) → invitas por email; el
+  invitado ve la notificación al entrar con su Google y al aceptar recibe el
+  proyecto completo, que se guarda en SU carpeta local.
+- Mientras estáis conectados a la vez: cambios en <1s, avatares de presencia,
+  y bloqueo de campo mientras otro edita (prompts de plano). Lo generado por
+  cualquiera se replica a la carpeta local de todos (relay por RTDB, chunks
+  transitorios que se borran — la sala nunca almacena contenido de forma
+  duradera).
+- Sin co-presencia, el que vuelve se pone al día con el snapshot de la sala.
+- El id de sala es un token no adivinable (modelo de acceso de la fase de
+  validación; ver `database.rules.json`).
+
 ## Pendiente para después de la validación
 
 - Sesiones Magnific en Firestore (sobrevivir reinicios de Cloud Run sin
   reconectar) — hoy: archivo cifrado en `/tmp`.
-- Fase 0.5: Share + realtime co-online (salas RTDB + field locks).
-- Storage en la nube (Cloud Storage) para colaboración asíncrona.
+- Storage en la nube (Cloud Storage) para colaboración asíncrona y acceso
+  multi-dispositivo sin co-presencia.
+- Transferencia de assets grandes por WebRTC (hoy: chunks RTDB, cap 100MB).

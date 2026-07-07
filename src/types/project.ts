@@ -265,4 +265,6 @@ export interface Project {
   styleId?: string;
   settings: Settings;
   gates: Gates;
+  /** Realtime collaboration (Fase 0.5): set when this project is shared. */
+  share?: { roomId: string; ownerUid: string };
 }
