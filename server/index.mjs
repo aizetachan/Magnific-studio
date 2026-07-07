@@ -74,6 +74,8 @@ const MCP_STATIC_TOKEN = process.env.MAGNIFIC_MCP_TOKEN ?? "";
 // Local-per-machine asset store. Generated files are downloaded here so they
 // outlive Magnific's expiring signed URLs; served back at /api/director/files/.
 const STORAGE_DIR = resolve(process.env.STORAGE_DIR ?? "./storage");
+// Built SPA (served same-origin in production; absent in dev, where Vite runs).
+const DIST_DIR = resolve(process.env.DIST_DIR ?? "./dist");
 const REDIRECT_URI = `${APP_ORIGIN}/api/director/auth/callback`;
 const OAUTH_ENV = {
   AUTH_URL: process.env.MAGNIFIC_OAUTH_AUTH_URL,
@@ -231,7 +233,8 @@ function getCookie(req, name) {
   return undefined;
 }
 function sidCookie(sid) {
-  return `msid=${sid}; HttpOnly; Path=/; SameSite=Lax; Max-Age=2592000`;
+  const secure = process.env.NODE_ENV === "production" ? "; Secure" : "";
+  return `msid=${sid}; HttpOnly; Path=/; SameSite=Lax; Max-Age=2592000${secure}`;
 }
 function ensureSid(req) {
   return getCookie(req, "msid") ?? randomBytes(16).toString("hex");
@@ -352,6 +355,13 @@ const CONTENT_TYPE = {
   ".wav": "audio/wav",
   ".m4a": "audio/mp4",
   ".ogg": "audio/ogg",
+  ".html": "text/html; charset=utf-8",
+  ".js": "text/javascript; charset=utf-8",
+  ".css": "text/css; charset=utf-8",
+  ".json": "application/json",
+  ".ico": "image/x-icon",
+  ".woff": "font/woff",
+  ".woff2": "font/woff2",
 };
 function extFor(url, contentType) {
   try {
@@ -666,6 +676,15 @@ async function handle(req, res) {
     cors(res);
     res.writeHead(204);
     return res.end();
+  }
+
+  // CSRF hardening: cookie-authed mutating routes must come from our origin.
+  // (SameSite=Lax covers navigation; this closes cross-origin fetch/form posts.)
+  if (req.method === "POST") {
+    const origin = req.headers.origin;
+    if (origin && origin !== ALLOW_ORIGIN && origin !== APP_ORIGIN) {
+      return json(res, 403, { ok: false, error: "origin no permitido" });
+    }
   }
 
   if (req.method === "GET" && (path === "/health" || path === "/api/director/health")) {
@@ -1200,6 +1219,25 @@ async function handle(req, res) {
         models: [],
         error: e instanceof Error ? e.message : String(e),
       });
+    }
+  }
+
+  // Static SPA (production): serve the built dist/ same-origin so there is no
+  // CORS and the cookie flow just works. API routes were handled above.
+  if ((req.method === "GET" || req.method === "HEAD") && !path.startsWith("/api/")) {
+    let file = resolve(join(DIST_DIR, decodeURIComponent(path).slice(1)));
+    // Only serve real files inside dist/; anything else falls back to the SPA.
+    if (!file.startsWith(DIST_DIR) || !existsSync(file) || statSync(file).isDirectory()) {
+      file = join(DIST_DIR, "index.html");
+    }
+    if (existsSync(file)) {
+      const ctype = CONTENT_TYPE[extname(file).toLowerCase()] ?? "application/octet-stream";
+      const immutable = /assets\//.test(file);
+      res.writeHead(200, {
+        "content-type": ctype,
+        "cache-control": immutable ? "public, max-age=31536000, immutable" : "no-cache",
+      });
+      return createReadStream(file).pipe(res);
     }
   }
 
