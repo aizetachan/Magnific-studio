@@ -14,6 +14,7 @@ export function LockableTextarea({
   return (
     <textarea
       {...props}
+      className={`${props.className ?? ""} ${lock.lockedBy ? "field-locked" : ""}`.trim()}
       disabled={props.disabled || !!lock.lockedBy}
       title={lock.lockedBy ? `Editando: ${lock.lockedBy}` : props.title}
       onFocus={(e) => {

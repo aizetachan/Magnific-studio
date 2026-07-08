@@ -46,3 +46,15 @@ export function me(): { uid: string; email: string } | null {
   const u = getAuth(app()).currentUser;
   return u ? { uid: u.uid, email: u.email ?? "" } : null;
 }
+
+/** Full profile for presence (display name + Google avatar). */
+export function meProfile(): { uid: string; email: string; name?: string; photo?: string } | null {
+  const u = getAuth(app()).currentUser;
+  if (!u) return null;
+  return {
+    uid: u.uid,
+    email: u.email ?? "",
+    name: u.displayName ?? undefined,
+    photo: u.photoURL ?? undefined,
+  };
+}

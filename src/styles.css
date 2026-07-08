@@ -1165,3 +1165,24 @@ code { background: var(--surface-2); border: 1px solid var(--border-1); border-r
 }
 .action--danger:disabled { opacity: 0.45; cursor: not-allowed; }
 .confirm-modal__title--danger { color: #ff6b6f; }
+
+/* Field locked by a collaborator: animated dashed pink border. */
+.field-locked {
+  border: 2px dashed var(--emphasis-0, #ff58ae) !important;
+  animation: lock-dash 1.4s ease-in-out infinite;
+  opacity: 0.9;
+}
+@keyframes lock-dash {
+  0%, 100% { border-color: var(--emphasis-0, #ff58ae); }
+  50% { border-color: color-mix(in srgb, var(--emphasis-0, #ff58ae) 45%, transparent); }
+}
+
+/* Presence avatars: bigger, photo-capable, matching the share button height. */
+.share-presence__avatar {
+  width: 28px; height: 28px; border-radius: 50%; margin-left: -7px;
+  object-fit: cover; border: 2px solid var(--panel-2);
+}
+.share-presence__avatar--initial {
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--emphasis-0, #ff58ae); color: #fff; font-size: 12px; font-weight: 700;
+}

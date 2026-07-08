@@ -32,11 +32,15 @@ export function PresenceAvatars() {
   if (others.length === 0) return null;
   return (
     <div className="share-presence" title={others.map((p) => p.email).join(", ")}>
-      {others.slice(0, 4).map((p) => (
-        <span className="share-presence__avatar" key={p.uid}>
-          {(p.email || "?").slice(0, 1).toUpperCase()}
-        </span>
-      ))}
+      {others.slice(0, 4).map((p) =>
+        p.photo ? (
+          <img className="share-presence__avatar" key={p.uid} src={p.photo} alt={p.name ?? p.email} referrerPolicy="no-referrer" />
+        ) : (
+          <span className="share-presence__avatar share-presence__avatar--initial" key={p.uid}>
+            {(p.name || p.email || "?").slice(0, 1).toUpperCase()}
+          </span>
+        ),
+      )}
     </div>
   );
 }

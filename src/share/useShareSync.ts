@@ -19,8 +19,8 @@ import {
   preloadLocalAssets,
   registerIncomingAsset,
 } from "@/state/assets";
-import { me, shareEnabled } from "./db";
-import { applyOps, computeOps } from "./diff";
+import { me, meProfile, shareEnabled } from "./db";
+import { applyOps, computeOps, normalizeProject } from "./diff";
 import { ShareRoom, type PresenceEntry } from "./room";
 import { bindLocks, setLocks, unbindLocks } from "./locks";
 
@@ -78,7 +78,8 @@ export function useShareSync(
   useEffect(() => {
     const user = me();
     if (!roomId || !shareEnabled || !user) return;
-    const room = new ShareRoom(roomId, user.uid, user.email);
+    const prof = meProfile();
+    const room = new ShareRoom(roomId, user.uid, user.email, prof?.name, prof?.photo);
     roomRef.current = room;
     lastSynced.current = null;
 
@@ -90,6 +91,7 @@ export function useShareSync(
         next.settings = prev.settings; // never synced
         next.consumption = prev.consumption;
         next.share = prev.share;
+        normalizeProject(next);
         hydrateAssetRefs(next);
         lastSynced.current = sharedView(next);
         return next;
@@ -124,6 +126,7 @@ export function useShareSync(
           setProject((prev) => {
             const next = structuredClone(prev) as Project;
             applyOps(next, p.ops);
+            normalizeProject(next);
             hydrateAssetRefs(next);
             lastSynced.current = sharedView(next);
             return next;

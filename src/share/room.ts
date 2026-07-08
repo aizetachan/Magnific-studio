@@ -37,9 +37,21 @@ export interface RoomPatch {
   ops: SyncOp[];
 }
 
+/** Wire form: ops are JSON-encoded because RTDB strips empty arrays/objects,
+ * which corrupted entities (e.g. characters: [] vanished → .map crashes). */
+interface WirePatch {
+  rev: number;
+  uid: string;
+  opsJson?: string;
+  /** Legacy field from builds that stored ops structurally. */
+  ops?: SyncOp[];
+}
+
 export interface PresenceEntry {
   uid: string;
   email: string;
+  name?: string;
+  photo?: string;
   activeSceneId?: string | null;
 }
 
@@ -91,8 +103,20 @@ export class ShareRoom {
     readonly roomId: string,
     private uid: string,
     private email: string,
+    private name?: string,
+    private photo?: string,
   ) {
     this.root = ref(rtdb(), `rooms/${roomId}`);
+  }
+
+  private presenceValue(activeSceneId: string | null = null) {
+    return {
+      email: this.email,
+      name: this.name ?? null,
+      photo: this.photo ?? null,
+      activeSceneId,
+      at: serverTimestamp(),
+    };
   }
 
   // --- membership / lifecycle ---
@@ -101,9 +125,14 @@ export class ShareRoom {
     if (meta) {
       await runTransaction(child(this.root, "meta"), (cur) => cur ?? { ...meta, createdAt: Date.now() });
     }
-    await set(child(this.root, `members/${this.uid}`), { email: this.email, at: serverTimestamp() });
+    await set(child(this.root, `members/${this.uid}`), {
+      email: this.email,
+      name: this.name ?? null,
+      photo: this.photo ?? null,
+      at: serverTimestamp(),
+    });
     const pres = child(this.root, `presence/${this.uid}`);
-    await set(pres, { email: this.email, at: serverTimestamp() });
+    await set(pres, this.presenceValue());
     void onDisconnect(pres).remove();
   }
 
@@ -138,7 +167,7 @@ export class ShareRoom {
       at: Date.now(),
     }));
     const rev = (tx.snapshot.val() as { rev: number }).rev;
-    const patch: RoomPatch = { rev, uid: this.uid, ops };
+    const patch: WirePatch = { rev, uid: this.uid, opsJson: JSON.stringify(ops) };
     const pref = push(child(this.root, "patches"));
     await set(pref, patch);
     if (rev % SNAPSHOT_EVERY === 1) {
@@ -154,9 +183,9 @@ export class ShareRoom {
     onValue(
       child(this.root, "patches"),
       (snap) => {
-        const all: Array<[string, RoomPatch]> = [];
+        const all: Array<[string, unknown]> = [];
         snap.forEach((c) => {
-          all.push([c.key ?? "", c.val() as RoomPatch]);
+          all.push([c.key ?? "", c.val()]);
         });
         const keep = 40; // small replay window past the snapshot
         if (all.length > keep) {
@@ -178,7 +207,14 @@ export class ShareRoom {
     this.subs.push(
       onChildAdded(q, (snap) => {
         if (snap.key) this.lastSeenPatchKey = snap.key;
-        cb(snap.val() as RoomPatch);
+        const wire = snap.val() as WirePatch;
+        let ops: SyncOp[] = [];
+        try {
+          ops = wire.opsJson ? (JSON.parse(wire.opsJson) as SyncOp[]) : (wire.ops ?? []);
+        } catch {
+          ops = [];
+        }
+        cb({ rev: wire.rev, uid: wire.uid, ops });
       }),
     );
   }
@@ -186,11 +222,7 @@ export class ShareRoom {
   // --- presence ---
 
   setPresence(activeSceneId: string | null): void {
-    void set(child(this.root, `presence/${this.uid}`), {
-      email: this.email,
-      activeSceneId,
-      at: serverTimestamp(),
-    }).catch(() => {});
+    void set(child(this.root, `presence/${this.uid}`), this.presenceValue(activeSceneId)).catch(() => {});
   }
 
   onPresence(cb: (entries: PresenceEntry[]) => void): void {
@@ -198,8 +230,14 @@ export class ShareRoom {
       onValue(child(this.root, "presence"), (snap) => {
         const out: PresenceEntry[] = [];
         snap.forEach((c) => {
-          const v = c.val() as { email?: string; activeSceneId?: string | null };
-          out.push({ uid: c.key ?? "", email: v.email ?? "", activeSceneId: v.activeSceneId });
+          const v = c.val() as { email?: string; name?: string | null; photo?: string | null; activeSceneId?: string | null };
+          out.push({
+            uid: c.key ?? "",
+            email: v.email ?? "",
+            name: v.name ?? undefined,
+            photo: v.photo ?? undefined,
+            activeSceneId: v.activeSceneId,
+          });
         });
         cb(out);
       }),

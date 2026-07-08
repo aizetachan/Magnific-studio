@@ -53,6 +53,33 @@ export function computeOps(prev: Project, next: Project): SyncOp[] {
   return ops;
 }
 
+/** Ensure required containers exist after any inbound merge (a hostile or
+ * legacy peer payload must never crash the UI). Mutates and returns p. */
+export function normalizeProject(p: Project): Project {
+  const d = p as unknown as AnyRec;
+  d.scenes = Array.isArray(d.scenes) ? d.scenes : [];
+  d.shots = Array.isArray(d.shots) ? d.shots : [];
+  d.library = Array.isArray(d.library) ? d.library : [];
+  if (!d.story || typeof d.story !== "object") d.story = { logline: "", characters: [], arcs: [], tone: "" };
+  const st = d.story as AnyRec;
+  st.characters = Array.isArray(st.characters) ? st.characters : [];
+  st.arcs = Array.isArray(st.arcs) ? st.arcs : [];
+  if (!d.delivery || typeof d.delivery !== "object") d.delivery = {};
+  if (!d.gates || typeof d.gates !== "object") d.gates = { story: "in_progress", script: "locked", storyboard: "locked", production: {}, delivery: "locked" };
+  if (!d.consumption || typeof d.consumption !== "object") d.consumption = { events: [] };
+  const co = d.consumption as AnyRec;
+  co.events = Array.isArray(co.events) ? co.events : [];
+  for (const sc of d.scenes as AnyRec[]) {
+    if (sc.characterIds != null && !Array.isArray(sc.characterIds)) sc.characterIds = [];
+  }
+  for (const sh of d.shots as AnyRec[]) {
+    if (sh.characterIds != null && !Array.isArray(sh.characterIds)) sh.characterIds = [];
+    if (sh.keyframeHistory != null && !Array.isArray(sh.keyframeHistory)) sh.keyframeHistory = [];
+    if (sh.videoHistory != null && !Array.isArray(sh.videoHistory)) sh.videoHistory = [];
+  }
+  return p;
+}
+
 /** Apply remote ops onto a draft project (mutates). Preserves array order for
  * updates; new entities append (order refinements arrive as sibling updates). */
 export function applyOps(draft: Project, ops: SyncOp[]): void {
