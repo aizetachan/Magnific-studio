@@ -146,7 +146,7 @@ const STRINGS = {
     "dlib.type.style": "Style",
     // Settings
     "settings.apiHelp":
-      "Stored only in this browser (never on our servers: the browser calls Anthropic directly). Not exported with projects.",
+      "Stored only in this browser (never on our servers). Not exported with projects.",
     "settings.apiWhere": "Where do I find it?",
     "settings.model": "Director model",
     "settings.testConn": "Test connection",
@@ -257,7 +257,7 @@ const STRINGS = {
     "dlib.type.location": "Entorno",
     "dlib.type.style": "Estilo",
     "settings.apiHelp":
-      "Se guarda solo en este navegador (nunca en nuestros servidores: el navegador llama a Anthropic directamente). No se exporta con los proyectos.",
+      "Se guarda solo en este navegador (nunca en nuestros servidores). No se exporta con los proyectos.",
     "settings.apiWhere": "¿Dónde encontrarla?",
     "settings.model": "Modelo del director",
     "settings.testConn": "Comprobar conexión",
