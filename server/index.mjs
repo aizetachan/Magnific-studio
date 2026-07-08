@@ -298,12 +298,19 @@ function getCookie(req, name) {
   }
   return undefined;
 }
+// ⚠️ Firebase Hosting strips every cookie EXCEPT one literally named
+// "__session" before forwarding to Cloud Run — any other name means the
+// server never sees the session and every request looks like a new user.
+const SESSION_COOKIE = "__session";
+function sidOf(req) {
+  return getCookie(req, SESSION_COOKIE) ?? getCookie(req, "msid"); // msid = legacy direct access
+}
 function sidCookie(sid) {
   const secure = process.env.NODE_ENV === "production" ? "; Secure" : "";
-  return `msid=${sid}; HttpOnly; Path=/; SameSite=Lax; Max-Age=2592000${secure}`;
+  return `${SESSION_COOKIE}=${sid}; HttpOnly; Path=/; SameSite=Lax; Max-Age=2592000${secure}`;
 }
 function ensureSid(req) {
-  return getCookie(req, "msid") ?? randomBytes(16).toString("hex");
+  return sidOf(req) ?? randomBytes(16).toString("hex");
 }
 
 // --- Identity (Firebase Google login, optional) ---
@@ -786,7 +793,7 @@ async function handle(req, res) {
 
   // OAuth: status
   if (req.method === "GET" && path === "/api/director/auth/status") {
-    const sid = getCookie(req, "msid");
+    const sid = sidOf(req);
     let tokens = sid ? sessions.get(await resolveKey(sid))?.tokens : undefined;
     if (!tokens?.access_token && sid) {
       await refreshSharedState();
@@ -875,7 +882,7 @@ async function handle(req, res) {
 
   // OAuth: logout (Magnific disconnect for THIS user/session key)
   if (req.method === "POST" && path === "/api/director/auth/logout") {
-    const sid = getCookie(req, "msid");
+    const sid = sidOf(req);
     if (sid) {
       sessions.delete(keyOf(sid));
       persistSessions();
@@ -916,7 +923,7 @@ async function handle(req, res) {
 
   // Generation: START — returns a job id immediately (async by design).
   if (req.method === "POST" && path === "/api/director/mcp-generate") {
-    if (rateLimited(keyOf(getCookie(req, "msid")), "generate", 30, 5 * 60 * 1000)) {
+    if (rateLimited(keyOf(sidOf(req)), "generate", 30, 5 * 60 * 1000)) {
       return json(res, 200, { ok: false, status: "failed", error: "Demasiadas generaciones seguidas; espera unos minutos." });
     }
     try {
@@ -924,7 +931,7 @@ async function handle(req, res) {
       if (!body.prompt || !body.kind) {
         return json(res, 400, { ok: false, error: "kind and prompt required" });
       }
-      const sid = getCookie(req, "msid");
+      const sid = sidOf(req);
       return json(res, 200, await startGeneration(body, sid));
     } catch (e) {
       console.error(`[gen] ERROR:`, e instanceof Error ? e.stack : String(e));
@@ -943,7 +950,7 @@ async function handle(req, res) {
     // Session-scoped: a session can only observe its own jobs (legacy jobs
     // created before scoping have no sid and stay reachable).
     const owned = jobs.get(jobId);
-    if (owned?.sid && owned.sid !== keyOf(getCookie(req, "msid"))) {
+    if (owned?.sid && owned.sid !== keyOf(sidOf(req))) {
       return json(res, 200, { ok: false, status: "failed", error: "unknown job" });
     }
     try {
@@ -965,7 +972,7 @@ async function handle(req, res) {
   if (req.method === "GET" && path === "/api/director/asset") {
     const jobId = url.searchParams.get("job");
     const job = jobId ? jobs.get(jobId) : undefined;
-    const sid = keyOf(getCookie(req, "msid"));
+    const sid = keyOf(sidOf(req));
     if (!job || (job.sid && job.sid !== sid)) {
       return json(res, 404, { ok: false, error: "unknown job" });
     }
@@ -1069,7 +1076,7 @@ async function handle(req, res) {
 
   // Account plan + credits (for Settings).
   if (req.method === "GET" && path === "/api/director/account") {
-    const sid = getCookie(req, "msid");
+    const sid = sidOf(req);
     const token = MCP_URL ? await tokenFor(sid).catch(() => undefined) : undefined;
     if (!token) return json(res, 200, { ok: false, connected: false });
     try {
@@ -1088,7 +1095,7 @@ async function handle(req, res) {
   // bytes, so it uploads each input to a per-session /tmp dir before /render.
   // Raw binary body; capped size; the whole dir is deleted after the render.
   if (req.method === "POST" && path === "/api/director/render-input") {
-    const sid = getCookie(req, "msid");
+    const sid = sidOf(req);
     const rid = url.searchParams.get("render") ?? "";
     const name = basename(url.searchParams.get("name") ?? "");
     if (!sid) return json(res, 401, { ok: false, error: "sesión requerida" });
@@ -1127,7 +1134,7 @@ async function handle(req, res) {
 
   // Local timeline render with ffmpeg (trim + concat + voice/music mux).
   if (req.method === "POST" && path === "/api/director/render") {
-    if (rateLimited(keyOf(getCookie(req, "msid")), "render", 6, 10 * 60 * 1000)) {
+    if (rateLimited(keyOf(sidOf(req)), "render", 6, 10 * 60 * 1000)) {
       return json(res, 200, { ok: false, error: "Demasiados renders seguidos; espera unos minutos." });
     }
     try {
@@ -1147,7 +1154,7 @@ async function handle(req, res) {
           return json(res, 200, { ok: false, error: "Hay un render en curso; prueba en unos segundos." });
         }
         renderBusy++;
-        const sid = getCookie(req, "msid");
+        const sid = sidOf(req);
         const dir = renderDirFor(sid, String(body.render));
         try {
           const fileIn = (f) => {
@@ -1230,7 +1237,7 @@ async function handle(req, res) {
 
   // TTS voice catalog for the Audio UI selector.
   if (req.method === "GET" && path === "/api/director/voices") {
-    const sid = getCookie(req, "msid");
+    const sid = sidOf(req);
     const token = MCP_URL ? await tokenFor(sid).catch(() => undefined) : undefined;
     if (!token) return json(res, 200, { ok: false, voices: [] });
     try {
@@ -1243,7 +1250,7 @@ async function handle(req, res) {
 
   // List the user's existing Magnific Library assets (to browse/reuse).
   if (req.method === "GET" && path === "/api/director/library-list") {
-    const sid = getCookie(req, "msid");
+    const sid = sidOf(req);
     const token = MCP_URL ? await tokenFor(sid).catch(() => undefined) : undefined;
     if (!token) return json(res, 200, { ok: false, assets: [] });
     try {
@@ -1260,7 +1267,7 @@ async function handle(req, res) {
   if (req.method === "POST" && path === "/api/director/library-create") {
     try {
       const body = await readBody(req);
-      const sid = getCookie(req, "msid");
+      const sid = sidOf(req);
       const token = MCP_URL ? await tokenFor(sid) : undefined;
       if (!token) {
         return json(res, 200, { ok: false, error: "Conecta tu cuenta de Magnific (OAuth) en Ajustes" });
@@ -1287,7 +1294,7 @@ async function handle(req, res) {
     try {
       const body = await readBody(req);
       const ids = Array.isArray(body.ids) ? [...new Set(body.ids.filter(Boolean))] : [];
-      const sid = getCookie(req, "msid");
+      const sid = sidOf(req);
       const token = MCP_URL ? await tokenFor(sid) : undefined;
       if (!token || ids.length === 0) {
         return json(res, 200, { ok: true, total: 0, perId: {} });
@@ -1314,7 +1321,7 @@ async function handle(req, res) {
   // Model catalog for the UI selector (live when connected, else static).
   if (req.method === "GET" && path === "/api/director/models") {
     const kind = url.searchParams.get("kind") === "video" ? "video" : "image";
-    const sid = getCookie(req, "msid");
+    const sid = sidOf(req);
     const token = MCP_URL ? await tokenFor(sid).catch(() => undefined) : undefined;
     try {
       return json(res, 200, { ok: true, kind, models: await listModels(MCP_URL, token, kind) });
