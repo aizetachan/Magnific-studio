@@ -241,9 +241,22 @@ export function HomeShell({ onEnterStudio }: { onEnterStudio: () => void }) {
     <ProjectCard key={p.id} p={p} isStar={starredSet.has(p.id)} onOpen={openProject} onStar={onStar} onContext={onContext} />
   );
 
-  const grid = (items: typeof projects, empty: string) =>
+  const grid = (items: typeof projects, empty: string, withCreate = false) =>
     items.length === 0 ? (
-      <p className="muted home__empty">{empty}</p>
+      withCreate ? (
+        <div className="home__empty-state">
+          <p className="muted home__empty">{empty}</p>
+          <p className="home__empty-cta">
+            {t("home.emptyPress")}{" "}
+            <button className="home__create home__create--inline" onClick={newProject}>
+              <span className="home__create-ic"><IconPlus size={16} /></span> {t("home.create")}
+            </button>{" "}
+            {t("home.emptyCta")}
+          </p>
+        </div>
+      ) : (
+        <p className="muted home__empty">{empty}</p>
+      )
     ) : (
       <div className="home__files">{items.map(renderCard)}</div>
     );
@@ -263,7 +276,7 @@ export function HomeShell({ onEnterStudio }: { onEnterStudio: () => void }) {
         </div>
 
         <button className="home__create" onClick={newProject}>
-          <span className="home__create-ic"><IconPlus size={18} /></span> Create
+          <span className="home__create-ic"><IconPlus size={18} /></span> {t("home.create")}
         </button>
 
         <div className="home__navsearch">
@@ -381,20 +394,20 @@ export function HomeShell({ onEnterStudio }: { onEnterStudio: () => void }) {
                   <strong>Proyectos</strong>
                   <button className="icon-btn" title={t("home.newProject")} onClick={newProject}><IconPlus size={16} /></button>
                 </div>
-                {grid(filtered, "Aún no hay proyectos. Pulsa Create para empezar.")}
+                {grid(filtered, t("home.emptyTitle"), true)}
               </section>
             </div>
           ) : (
           <div className="home__content">
           {section === "recents" ? (
             <section className="home__block">
-              {grid(filtered, "No hay proyectos recientes.")}
+              {grid(filtered, t("home.emptyRecents"))}
             </section>
           ) : null}
 
           {section === "all" ? (
             <section className="home__block">
-              {grid(filtered, "Aún no hay proyectos.")}
+              {grid(filtered, t("home.emptyAll"), true)}
             </section>
           ) : null}
 

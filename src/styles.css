@@ -1109,3 +1109,9 @@ code { background: var(--surface-2); border: 1px solid var(--border-1); border-r
   background: transparent; border: none; color: inherit; font: inherit;
 }
 .usermenu__item:hover { background: var(--panel-6); }
+
+/* Empty state with an inline Create CTA. */
+.home__empty-state { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 28px 0; }
+.home__empty-state .home__empty { padding: 0; }
+.home__empty-cta { display: flex; align-items: center; gap: 8px; color: var(--fg-1, #ddd); font-size: 14px; }
+.home__create--inline { display: inline-flex; }
