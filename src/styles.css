@@ -1450,7 +1450,12 @@ code { background: var(--surface-2); border: 1px solid var(--border-1); border-r
 .librarypage__tabs { width: fit-content; }
 .librarypage__card .dlib__img { position: relative; aspect-ratio: 1; overflow: hidden; }
 .librarypage__card .dlib__img > img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.librarypage__card .dlib__img--empty { width: 100%; height: 100%; }
+/* Type-icon placeholder underneath; the resolved cover overlays it. */
+.librarypage__ph {
+  position: absolute; inset: 0; display: grid; place-items: center;
+  color: var(--fg-4, #565b63);
+}
+.librarypage__cover { position: absolute; inset: 0; }
 .librarypage__tabs { margin-bottom: 4px; }
 .librarypage__count {
   position: absolute; top: 8px; right: 8px; font-size: 11px; font-weight: 700;
