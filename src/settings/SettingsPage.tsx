@@ -161,7 +161,15 @@ export function SettingsPage() {
               <p className="muted small">
                 Se guarda solo en este navegador (nunca en nuestros servidores:
                 el navegador llama a Anthropic directamente). No se exporta con
-                los proyectos.
+                los proyectos.{" "}
+                <a
+                  className="settings-help-link"
+                  href="https://platform.claude.com/settings/workspaces/default/keys"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  ¿Dónde encontrarla?
+                </a>
               </p>
               <label className="card__label">Modelo del director</label>
               <select

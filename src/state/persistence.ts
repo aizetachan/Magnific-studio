@@ -77,6 +77,19 @@ export function currentProjectId(): string | undefined {
   }
 }
 
+/** Remove the project param — the Home/dashboard has its own clean URL. */
+export function clearUrlProject(): void {
+  try {
+    const url = new URL(window.location.href);
+    if (url.searchParams.has("p")) {
+      url.searchParams.delete("p");
+      window.history.replaceState({}, "", url);
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
 /** Reflect the active project id in the URL (so a reload/share reopens it). */
 export function setUrlProject(id: string): void {
   try {

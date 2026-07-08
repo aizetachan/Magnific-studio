@@ -1014,3 +1014,7 @@ code { background: var(--surface-2); border: 1px solid var(--border-1); border-r
   width: 7px; height: 7px; border-radius: 50%; background: var(--ghost-2);
 }
 .tour-modal__dot.is-on { background: var(--emphasis-0); }
+
+/* Help link under the API key field. */
+.settings-help-link { color: var(--emphasis-0); text-decoration: underline; }
+.settings-help-link:hover { color: var(--emphasis-2, #ff1a90); }

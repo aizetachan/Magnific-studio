@@ -22,6 +22,7 @@ import { Director } from "@/director/Director";
 import { LibraryPage } from "@/blocks/library/LibraryPage";
 import { HomeShell } from "@/home/HomeShell";
 import { WorkdirGate } from "@/components/WorkdirGate";
+import { clearUrlProject } from "@/state/persistence";
 import { ShareInbox } from "@/share/ShareInbox";
 import { OnboardingTour } from "@/components/OnboardingTour";
 import { AppAlert } from "@/components/AppAlert";
@@ -126,12 +127,20 @@ export function App() {
     new URLSearchParams(window.location.search).has("p") ? "studio" : "home",
   );
 
+  // Going back to the dashboard: Home has its own URL (no ?p), so a reload
+  // lands on Home by default instead of re-opening the last file.
+  const goHome = () => {
+    clearUrlProject();
+    setView("home");
+  };
+
   // "Ir a Ajustes" from anywhere (e.g. the connect-API modal): switch to Home,
   // where HomeShell/SettingsPage pick up the pending target section.
   useEffect(() => {
-    const go = () => setView("home");
+    const go = () => goHome();
     window.addEventListener("ms:open-settings", go);
     return () => window.removeEventListener("ms:open-settings", go);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Deep-link from anywhere (e.g. Historia's edit icon) to the Library, focused
@@ -212,7 +221,7 @@ export function App() {
             setShowLibrary(false);
           }}
           onSelectLibrary={() => setShowLibrary(true)}
-          onSelectHome={() => setView("home")}
+          onSelectHome={goHome}
         />
         <main className="main">
           {/* Full-width header bar, outside the scrolling content container. */}
