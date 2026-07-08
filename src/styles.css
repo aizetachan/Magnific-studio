@@ -1444,7 +1444,15 @@ code { background: var(--surface-2); border: 1px solid var(--border-1); border-r
 .librarypage__grouphead { display: flex; align-items: center; gap: 12px; }
 .librarypage__grouphead .mini { display: inline-flex; align-items: center; gap: 5px; }
 .librarypage__import { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
-.librarypage__card { text-align: left; padding: 0; cursor: pointer; color: inherit; font: inherit; }
+.librarypage__card {
+  text-align: left; padding: 0; cursor: pointer; color: inherit; font: inherit;
+  /* Buttons center content vertically by default: with mixed 1/2-line names
+     the stretched grid pushed short cards' covers down. Pin content to top. */
+  display: flex; flex-direction: column; align-items: stretch; justify-content: flex-start;
+}
+.librarypage__card .dlib__img { flex: 0 0 auto; }
+/* Uniform meta height (fits a 2-line name) so all cards measure the same. */
+.librarypage__card .dlib__meta { min-height: 58px; }
 .librarypage__card:hover { border-color: var(--border-2); }
 /* Tabs: content-sized, not a full-width bar. */
 .librarypage__tabs { width: fit-content; }
