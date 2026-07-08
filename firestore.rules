@@ -31,7 +31,13 @@ service cloud.firestore {
         && request.resource.data.uid == request.auth.uid
         && request.resource.data.status == "pending"
         && !("roomId" in request.resource.data);
-      allow read: if request.auth != null
+      // get: resource == null covers probing your own not-yet-created knock
+      // (doc ids embed the unguessable link token, so this leaks nothing).
+      allow get: if request.auth != null
+        && (resource == null
+            || resource.data.uid == request.auth.uid
+            || resource.data.ownerUid == request.auth.uid);
+      allow list: if request.auth != null
         && (resource.data.uid == request.auth.uid
             || resource.data.ownerUid == request.auth.uid);
       allow update: if request.auth != null
