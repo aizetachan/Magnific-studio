@@ -8,11 +8,12 @@ import {
   IconPackage,
   IconWriting,
   type IconProps,
+  IconLock,
 } from "@tabler/icons-react";
 import { useStore } from "@/state/ProjectStore";
 import { ActiveBlockContext } from "@/state/ActiveBlock";
 import { LeadSlotContext } from "@/state/LeadSlot";
-import { buildBlocks } from "@/blocks";
+import { BLOCK_ORDER, buildBlocks } from "@/blocks";
 import { config } from "@/config";
 import { t as tr, useI18n, type TKey } from "@/i18n";
 import type { PhaseId } from "@/types/project";
@@ -194,6 +195,11 @@ export function App() {
   }
 
   const meta = PHASE_META[store.activePhase];
+  // Locked phase => read-only PREVIEW: the real page renders, interaction is
+  // blocked, and a banner points to the phase whose validation unlocks it.
+  const phaseLocked = !showLibrary && activeBlock.getGateState() === "locked";
+  const activeIdx = BLOCK_ORDER.indexOf(store.activePhase);
+  const prevBlock = activeIdx > 0 ? blocks[BLOCK_ORDER[activeIdx - 1]] : null;
   const HeaderIcon = showLibrary ? IconLibrary : meta.icon;
   const headerTitle = showLibrary ? "Biblioteca" : activeBlock.label;
   const headerDesc = showLibrary
@@ -256,14 +262,30 @@ export function App() {
                 <p className="muted page__desc">{headerDesc}</p>
                 <div className="page__lead-slot" ref={setLeadSlot} />
               </div>
+              {phaseLocked && prevBlock ? (
+                <div className="phase-preview__banner">
+                  <IconLock size={16} />
+                  <span>{t("preview.banner", { phase: activeBlock.label, prev: prevBlock.label })}</span>
+                  <button
+                    className="action action--gen"
+                    onClick={() => store.setActivePhase(prevBlock.phase)}
+                  >
+                    {t("preview.go", { prev: prevBlock.label })}
+                  </button>
+                </div>
+              ) : null}
               {showLibrary ? (
-                <LibraryPage focusAssetId={libraryFocus} />
+                <div className="page-body"><LibraryPage focusAssetId={libraryFocus} /></div>
               ) : (
-                activeBlock.render()
+                <div className={`page-body ${phaseLocked ? "phase-preview" : ""}`}>
+                  {activeBlock.render()}
+                </div>
               )}
             </div>
           </div>
-          <Director />
+          <div className={phaseLocked ? "director-disabled" : undefined}>
+            <Director />
+          </div>
         </main>
       </div>
       </LeadSlotContext.Provider>

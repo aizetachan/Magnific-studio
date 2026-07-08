@@ -1186,3 +1186,19 @@ code { background: var(--surface-2); border: 1px solid var(--border-1); border-r
   display: inline-flex; align-items: center; justify-content: center;
   background: var(--emphasis-0, #ff58ae); color: #fff; font-size: 12px; font-weight: 700;
 }
+
+/* Wide screens: center the page body; title/description stay put. */
+@media (min-width: 1441px) {
+  .page-body { max-width: 1360px; margin: 0 auto; }
+}
+
+/* Locked-phase preview: the real page, interaction off. */
+.phase-preview { pointer-events: none; user-select: none; opacity: 0.75; }
+.phase-preview__banner {
+  display: flex; align-items: center; gap: 10px; margin-bottom: 14px;
+  padding: 10px 14px; border-radius: 12px; font-size: 13px;
+  background: color-mix(in srgb, var(--emphasis-2, #ff1a90) 14%, #141014);
+  border: 1px solid var(--emphasis-0, #ff58ae); color: #fff;
+}
+.phase-preview__banner span { flex: 1; }
+.director-disabled { pointer-events: none; opacity: 0.55; }

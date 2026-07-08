@@ -108,7 +108,6 @@ export function Sidebar({
             <li key={id}>
               <button
                 className={`navitem ${active ? "navitem--active" : ""} ${locked ? "navitem--locked" : ""}`}
-                disabled={locked}
                 title={GATE_HINT[gate]}
                 onClick={() => onSelectPhase(id)}
               >
