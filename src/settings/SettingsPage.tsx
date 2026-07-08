@@ -19,6 +19,11 @@ import { useStore } from "@/state/ProjectStore";
 import { useCredentials, setCredentials } from "@/state/credentials";
 import { AnthropicClient } from "@/director/AnthropicClient";
 import { OpenAIClient, OPENAI_MODELS } from "@/director/OpenAIClient";
+import { authEnabled, watchAuth } from "@/auth/firebase";
+import type { User } from "firebase/auth";
+import { useMyCollaborators, useMyPendingKnocks } from "@/share/useKnocks";
+import { KnockRow } from "@/share/ShareControls";
+import { loadProject } from "@/state/persistence";
 import { config } from "@/config";
 import { consumeSettingsTarget } from "@/components/AppAlert";
 import { setLang, useI18n, type TKey } from "@/i18n";
@@ -39,9 +44,11 @@ type Sec =
 
 const NAV: { group: TKey; items: { id: Sec; label: string; labelKey?: TKey; icon: ComponentType<IconProps>; mock?: boolean }[] }[] = [
   { group: "settings.group.account", items: [
-    { id: "perfil", label: "Perfil", labelKey: "settings.nav.profile", icon: IconUser, mock: true },
+    { id: "perfil", label: "Perfil", labelKey: "settings.nav.profile", icon: IconUser },
     { id: "prefs", label: "Preferencias", labelKey: "settings.nav.prefs", icon: IconAdjustmentsHorizontal },
     { id: "seguridad", label: "Seguridad", labelKey: "settings.nav.security", icon: IconLock, mock: true },
+    { id: "people", label: "Collaborators", labelKey: "settings.nav.collaborators", icon: IconUsers },
+    { id: "billing", label: "Plan & billing", icon: IconCreditCard, mock: true },
   ]},
   { group: "settings.group.connections", items: [
     { id: "claude", label: "Claude (API)", labelKey: "settings.nav.claude", icon: IconSparkles },
@@ -52,10 +59,8 @@ const NAV: { group: TKey; items: { id: Sec; label: string; labelKey?: TKey; icon
   ]},
   { group: "settings.group.org", items: [
     { id: "team", label: "My Team", icon: IconBuildingSkyscraper, mock: true },
-    { id: "people", label: "People", icon: IconUsers, mock: true },
     { id: "apikeys", label: "API Keys", icon: IconCode, mock: true },
     { id: "sso", label: "Security SSO", icon: IconShieldLock, mock: true },
-    { id: "billing", label: "Plan & billing", icon: IconCreditCard, mock: true },
   ]},
 ];
 /** Compact brand logomarks for the provider switch. */
@@ -103,8 +108,33 @@ export function SettingsPage() {
     window.addEventListener("ms:open-settings", go);
     return () => window.removeEventListener("ms:open-settings", go);
   }, []);
-  // Mock profile fields (visual only, not persisted).
-  const [profile, setProfile] = useState({ name: "", username: "", email: "" });
+  // Profile: real data from the signed-in Google account; the username is
+  // user-editable and remembered in this browser (defaults to the name).
+  const [gUser, setGUser] = useState<User | null>(null);
+  useEffect(() => (authEnabled ? watchAuth(setGUser) : undefined), []);
+  const USERNAME_KEY = "magnific-studio:username";
+  const [username, setUsername] = useState(() => {
+    try {
+      return localStorage.getItem(USERNAME_KEY) ?? "";
+    } catch {
+      return "";
+    }
+  });
+  useEffect(() => {
+    if (gUser && !username) setUsername(gUser.displayName ?? "");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gUser]);
+  const saveUsername = (v: string) => {
+    setUsername(v);
+    try {
+      localStorage.setItem(USERNAME_KEY, v);
+    } catch {
+      /* ignore */
+    }
+  };
+  // Collaborators management (pending + with access).
+  const pendingKnocks = useMyPendingKnocks();
+  const collaborators = useMyCollaborators();
 
   const testConnection = async () => {
     setTesting(true);
@@ -300,13 +330,26 @@ export function SettingsPage() {
                     tr("settings.untested")
                   )}
                 </span>
-                <button
-                  className="action action--gen"
-                  disabled={testing}
-                  onClick={provider === "openai" ? testOpenAI : testConnection}
-                >
-                  {testing ? tr("settings.testing") : tr("settings.testConn")}
-                </button>
+                {provTested === "ok" && !testing ? (
+                  <button
+                    className="action"
+                    onClick={() =>
+                      provider === "openai"
+                        ? setCredentials({ openaiApiKey: "", openaiTested: "untested" })
+                        : setCredentials({ anthropicApiKey: "", connectionTested: "untested" })
+                    }
+                  >
+                    {tr("settings.disconnectApi")}
+                  </button>
+                ) : (
+                  <button
+                    className="action action--primary"
+                    disabled={testing}
+                    onClick={provider === "openai" ? testOpenAI : testConnection}
+                  >
+                    {testing ? tr("settings.testing") : tr("settings.testConn")}
+                  </button>
+                )}
               </div>
               {connError && provTested === "failed" ? (
                 <p className="muted small" style={{ color: "var(--err, #d05656)" }}>
@@ -433,36 +476,64 @@ export function SettingsPage() {
           {section === "perfil" ? (
             <div className="card">
               <div className="settings__avatar-row">
-                <div className="settings__avatar">
-                  {(profile.name || "S").trim().charAt(0).toUpperCase()}
-                </div>
-                <button className="mini" disabled>
-                  Cambiar avatar
-                </button>
+                {gUser?.photoURL ? (
+                  <img className="settings__avatar settings__avatar--img" src={gUser.photoURL} alt="" referrerPolicy="no-referrer" />
+                ) : (
+                  <div className="settings__avatar">
+                    {(gUser?.displayName || username || "?").trim().charAt(0).toUpperCase()}
+                  </div>
+                )}
+                <span className="muted small">Avatar de tu cuenta de Google.</span>
               </div>
               <label className="card__label">Nombre</label>
-              <input
-                placeholder="Santi"
-                value={profile.name}
-                onChange={(e) => setProfile((p) => ({ ...p, name: e.target.value }))}
-              />
+              <input value={gUser?.displayName ?? ""} readOnly disabled placeholder="—" />
               <label className="card__label">Username</label>
               <input
-                placeholder="santi"
-                value={profile.username}
-                onChange={(e) =>
-                  setProfile((p) => ({ ...p, username: e.target.value }))
-                }
+                placeholder="tu-nombre"
+                value={username}
+                onChange={(e) => saveUsername(e.target.value)}
               />
               <label className="card__label">Email</label>
-              <input
-                placeholder="santi@example.com"
-                value={profile.email}
-                onChange={(e) => setProfile((p) => ({ ...p, email: e.target.value }))}
-              />
-              <p className="muted small">
-                Perfil de demostración — todavía no se persiste.
-              </p>
+              <input value={gUser?.email ?? ""} readOnly disabled placeholder="—" />
+            </div>
+          ) : null}
+
+          {/* ---------- Cuenta · Colaboradores (real) ---------- */}
+          {section === "people" ? (
+            <div className="card">
+              {pendingKnocks.length > 0 ? (
+                <div className="share-modal__section">
+                  <label className="card__label">{tr("share.pending")}</label>
+                  {pendingKnocks.map((k) => (
+                    <KnockRow key={k.id} k={k} roomId={loadProject(k.projectId)?.share?.roomId} showProject />
+                  ))}
+                </div>
+              ) : null}
+              {collaborators.length > 0 ? (
+                <div className="share-modal__section">
+                  <label className="card__label">{tr("collab.access")}</label>
+                  {collaborators.map((c) => (
+                    <div className="knock" key={c.key}>
+                      {c.photo ? (
+                        <img className="knock__avatar" src={c.photo} alt="" referrerPolicy="no-referrer" />
+                      ) : (
+                        <span className="knock__avatar knock__avatar--initial">
+                          {(c.name || c.email).slice(0, 1).toUpperCase()}
+                        </span>
+                      )}
+                      <div className="knock__who">
+                        <strong>{c.name || c.email}</strong>
+                        <span className="muted small">
+                          {c.email} · {tr("collab.accessTo")} <b>«{c.projectName}»</b>
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+              {pendingKnocks.length === 0 && collaborators.length === 0 ? (
+                <p className="muted">{tr("collab.empty")}</p>
+              ) : null}
             </div>
           ) : null}
 
@@ -592,7 +663,7 @@ function MagnificAuth() {
       </div>
       <div className="kf__row" style={{ marginTop: 8 }}>
         {connected ? (
-          <button className="mini" onClick={logout}>
+          <button className="action" onClick={logout}>
             Desconectar
           </button>
         ) : (

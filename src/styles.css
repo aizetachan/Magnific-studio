@@ -1398,3 +1398,11 @@ code { background: var(--surface-2); border: 1px solid var(--border-1); border-r
   border-color: var(--emphasis-0, #ff58ae); color: #fff;
   background: color-mix(in srgb, var(--emphasis-2, #ff1a90) 12%, var(--panel-6));
 }
+
+/* Primary (brand pink) action button + photo avatar in settings. */
+.action--primary {
+  background: linear-gradient(135deg, var(--emphasis-0, #ff58ae), var(--emphasis-2, #ff1a90));
+  border: none; color: #fff; font-weight: 600;
+}
+.action--primary:hover:not(:disabled) { filter: brightness(1.08); }
+.settings__avatar--img { object-fit: cover; }
