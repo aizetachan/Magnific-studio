@@ -899,8 +899,16 @@ code { background: var(--surface-2); border: 1px solid var(--border-1); border-r
 .home__kbd { font-size: 12px; color: var(--fg-4); border: 1px solid var(--border-0); border-radius: 6px; padding: 1px 6px; }
 .home__tools { display: flex; justify-content: center; gap: 22px; flex-wrap: wrap; margin-bottom: 36px; }
 .home__tool { display: flex; flex-direction: column; align-items: center; gap: 8px; background: transparent; border: none; color: var(--fg-0); font-size: 13px; cursor: pointer; }
-.home__tool-ic { width: 56px; height: 56px; border-radius: 14px; background: var(--surface-2); display: grid; place-items: center; color: var(--fg-0); }
-.home__tool-ic--studio { background: linear-gradient(135deg,#7c5cff,#4f7cff); color: #fff; }
+.home__tool-ic {
+  width: 56px; height: 56px; border-radius: 14px; background: var(--surface-2);
+  display: grid; place-items: center; color: var(--fg-0);
+  transition: background 0.15s, color 0.15s;
+}
+/* Gray by default; each tool reveals its own color on hover. */
+.home__tool:hover .home__tool-ic--studio { background: linear-gradient(135deg, var(--emphasis-0, #ff58ae), var(--emphasis-2, #ff1a90)); color: #fff; }
+.home__tool:hover .home__tool-ic--image { background: linear-gradient(135deg, #4f7cff, #2f5ae8); color: #fff; }
+.home__tool:hover .home__tool-ic--video { background: linear-gradient(135deg, #8b5cf6, #6d28d9); color: #fff; }
+.home__tool:hover .home__tool-ic--audio { background: linear-gradient(135deg, #f59e0b, #ea7f14); color: #fff; }
 .home__empty { text-align: center; margin-top: 24px; }
 .home__block { margin: 0 auto 28px; max-width: 1280px; }
 .home__block-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; font-size: 15px; }
@@ -1142,3 +1150,11 @@ code { background: var(--surface-2); border: 1px solid var(--border-1); border-r
 .knock__who { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .knock__who strong, .knock__who span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .knock__btn { padding: 5px 9px; font-size: 12px; }
+
+/* Danger button + title for critical deletes. */
+.action--danger {
+  background: #e5484d; border: none; color: #fff; font-weight: 600;
+}
+.action--danger:hover:not(:disabled) { filter: brightness(1.08); }
+.action--danger:disabled { opacity: 0.45; cursor: not-allowed; }
+.confirm-modal__title--danger { color: #ff6b6f; }

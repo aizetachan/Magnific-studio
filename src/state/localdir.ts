@@ -421,6 +421,20 @@ export async function readProjectJson(projectId: string): Promise<File | null> {
   return null;
 }
 
+/** CRITICAL delete: remove the project's folder (json + assets) from the
+ * working directory, plus the legacy id-folder, and drop the index entry. */
+export async function deleteProjectFolder(projectId: string): Promise<void> {
+  if (!rootHandle || status !== "ready") return;
+  const idx = await loadIndex();
+  const folder = idx[projectId];
+  if (folder) {
+    await rootHandle.removeEntry(folder, { recursive: true }).catch(() => {});
+    delete idx[projectId];
+    await saveIndex();
+  }
+  await rootHandle.removeEntry(projectId, { recursive: true }).catch(() => {});
+}
+
 /** Where to write a project's json right now (folder must exist already). */
 export async function projectJsonPathFor(projectId: string): Promise<string> {
   return `${await folderFor(projectId)}/project.json`;

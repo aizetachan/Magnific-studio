@@ -10,6 +10,7 @@
 import type { Job, Project } from "@/types/project";
 import { uid } from "./seed";
 import {
+  deleteProjectFolder,
   ensureProjectFolder,
   localDirStatus,
   readProjectJson,
@@ -153,6 +154,8 @@ export function deleteProjectForever(id: string): void {
   st.delete(id);
   writeSet(STARRED, st);
   clearProject(id);
+  // CRITICAL: also remove the file's folder from the local working directory.
+  void deleteProjectFolder(id).catch(() => {});
 }
 
 /** Lightweight list of all locally-stored projects (for the switcher/dashboard). */

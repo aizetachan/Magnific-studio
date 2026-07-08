@@ -26,6 +26,7 @@ import { SettingsPage } from "@/settings/SettingsPage";
 import { DashboardLibrary } from "@/home/DashboardLibrary";
 import { useI18n, type TKey } from "@/i18n";
 import { UserMenu } from "@/auth/UserMenu";
+import { DeleteConfirmModal } from "@/components/DeleteConfirmModal";
 import { peekSettingsTarget } from "@/components/AppAlert";
 import {
   deleteProjectForever,
@@ -38,6 +39,7 @@ import {
   restoreProject,
   toggleStar,
   trashProject,
+  type ProjectSummary,
 } from "@/state/persistence";
 
 /**
@@ -61,11 +63,11 @@ const HOME_TITLE: Record<Section, TKey | ""> = {
   mock: "",
 };
 
-const TOOLS: Array<{ icon: typeof IconMovie; label: string; studio?: boolean; url?: string }> = [
-  { icon: IconMovie, label: "Studio", studio: true },
-  { icon: IconPhoto, label: "Image", url: "https://www.magnific.com/app/ai-image-generator" },
-  { icon: IconVideo, label: "Video", url: "https://www.magnific.com/app/ai-video-generator" },
-  { icon: IconMusic, label: "Audio", url: "https://www.magnific.com/app/voiceover-generator" },
+const TOOLS: Array<{ icon: typeof IconMovie; label: string; tone: string; studio?: boolean; url?: string }> = [
+  { icon: IconMovie, label: "Studio", tone: "studio", studio: true },
+  { icon: IconPhoto, label: "Image", tone: "image", url: "https://www.magnific.com/app/ai-image-generator" },
+  { icon: IconVideo, label: "Video", tone: "video", url: "https://www.magnific.com/app/ai-video-generator" },
+  { icon: IconMusic, label: "Audio", tone: "audio", url: "https://www.magnific.com/app/voiceover-generator" },
 ];
 
 // Teams (mock) shown in the account/team switcher; tag = the team's plan.
@@ -168,6 +170,9 @@ const ProjectCard = memo(function ProjectCard({ p, isStar, onOpen, onStar, onCon
 export function HomeShell({ onEnterStudio }: { onEnterStudio: () => void }) {
   const { switchProject, createProject } = useStore();
   const { t } = useI18n();
+  // Critical-delete confirmations (single file or empty-all).
+  const [toDelete, setToDelete] = useState<ProjectSummary | null>(null);
+  const [emptyAll, setEmptyAll] = useState(false);
   const [section, setSection] = useState<Section>("dashboard");
   // Jump straight to Settings when something requested it (connect-API modal).
   useEffect(() => {
@@ -378,7 +383,7 @@ export function HomeShell({ onEnterStudio }: { onEnterStudio: () => void }) {
                     onClick={t.studio ? newProject : t.url ? () => window.open(t.url, "_blank", "noopener") : undefined}
                     title={t.label}
                   >
-                    <span className={`home__tool-ic ${t.studio ? "home__tool-ic--studio" : ""}`}><t.icon size={22} /></span>
+                    <span className={`home__tool-ic home__tool-ic--${t.tone}`}><t.icon size={22} /></span>
                     <span>{t.label}</span>
                   </button>
                 ))}
@@ -420,26 +425,61 @@ export function HomeShell({ onEnterStudio }: { onEnterStudio: () => void }) {
           {section === "trash" ? (
             <section className="home__block">
               {trashed.length === 0 ? (
-                <p className="muted home__empty">La papelera está vacía.</p>
+                <p className="muted home__empty">{t("trash.empty")}</p>
               ) : (
-                <div className="home__files">
-                  {trashed.map((p) => (
-                    <div className="pcard" key={p.id}>
-                      <div className="pcard__thumb pcard__thumb--trash" style={{ background: projectColor(p.id) }} />
-                      <div className="pcard__foot">
-                        <div className="pcard__meta">
-                          <span className="pcard__name">{p.name}</span>
-                          <span className="pcard__time">en la papelera</span>
+                <>
+                  <div className="home__block-head">
+                    <button className="action action--danger" onClick={() => setEmptyAll(true)}>
+                      <IconTrash size={15} /> {t("trash.emptyAll")}
+                    </button>
+                  </div>
+                  <div className="home__files">
+                    {trashed.map((p) => (
+                      <div className="pcard" key={p.id}>
+                        <div className="pcard__thumb pcard__thumb--trash" style={{ background: projectColor(p.id) }} />
+                        <div className="pcard__foot">
+                          <div className="pcard__meta">
+                            <span className="pcard__name">{p.name}</span>
+                            <span className="pcard__time">{t("trash.inTrash")}</span>
+                          </div>
+                          <button className="mini" onClick={() => { restoreProject(p.id); bump(); }}>{t("trash.restore")}</button>
+                          <button className="icon-btn" title={t("trash.deleteOne")} onClick={() => setToDelete(p)}>
+                            <IconTrash size={15} />
+                          </button>
                         </div>
-                        <button className="mini" onClick={() => { restoreProject(p.id); bump(); }}>Restaurar</button>
-                        <button className="icon-btn" title="Eliminar definitivamente" onClick={() => { if (confirm(`¿Eliminar "${p.name}" para siempre?`)) { deleteProjectForever(p.id); bump(); } }}>
-                          <IconTrash size={15} />
-                        </button>
                       </div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                </>
               )}
+              {toDelete ? (
+                <DeleteConfirmModal
+                  title={t("trash.confirmTitle")}
+                  body={t("trash.confirmBody")}
+                  prompt={t("trash.typeName")}
+                  expected={toDelete.name}
+                  onCancel={() => setToDelete(null)}
+                  onConfirm={() => {
+                    deleteProjectForever(toDelete.id);
+                    setToDelete(null);
+                    bump();
+                  }}
+                />
+              ) : null}
+              {emptyAll ? (
+                <DeleteConfirmModal
+                  title={t("trash.confirmAllTitle")}
+                  body={t("trash.confirmAllBody", { n: String(trashed.length) })}
+                  prompt={t("trash.typeWord", { word: t("trash.word") })}
+                  expected={t("trash.word")}
+                  onCancel={() => setEmptyAll(false)}
+                  onConfirm={() => {
+                    trashed.forEach((p) => deleteProjectForever(p.id));
+                    setEmptyAll(false);
+                    bump();
+                  }}
+                />
+              ) : null}
             </section>
           ) : null}
 
