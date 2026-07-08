@@ -14,6 +14,7 @@ import { useStore } from "@/state/ProjectStore";
 import { ActiveBlockContext } from "@/state/ActiveBlock";
 import { LeadSlotContext } from "@/state/LeadSlot";
 import { BLOCK_ORDER, buildBlocks } from "@/blocks";
+import { PhaseSkeleton } from "@/components/PhaseSkeleton";
 import { config } from "@/config";
 import { t as tr, useI18n, type TKey } from "@/i18n";
 import type { PhaseId } from "@/types/project";
@@ -198,6 +199,13 @@ export function App() {
   // Locked phase => read-only PREVIEW: the real page renders, interaction is
   // blocked, and a banner points to the phase whose validation unlocks it.
   const phaseLocked = !showLibrary && activeBlock.getGateState() === "locked";
+  // Preview shows GHOST content unless the phase already has real entities.
+  const phaseHasContent =
+    store.activePhase === "script"
+      ? store.project.scenes.length > 0
+      : store.activePhase === "delivery"
+        ? store.project.shots.some((sh) => sh.videoUrl)
+        : store.project.shots.length > 0;
   const activeIdx = BLOCK_ORDER.indexOf(store.activePhase);
   const prevPhase = activeIdx > 0 ? BLOCK_ORDER[activeIdx - 1] : null;
   const prevBlock = prevPhase ? blocks[prevPhase] : null;
@@ -277,10 +285,12 @@ export function App() {
               ) : null}
               {showLibrary ? (
                 <div className="page-body"><LibraryPage focusAssetId={libraryFocus} /></div>
-              ) : (
-                <div className={`page-body ${phaseLocked ? "phase-preview" : ""}`}>
-                  {activeBlock.render()}
+              ) : phaseLocked ? (
+                <div className="page-body phase-preview">
+                  {phaseHasContent ? activeBlock.render() : <PhaseSkeleton phase={store.activePhase} />}
                 </div>
+              ) : (
+                <div className="page-body">{activeBlock.render()}</div>
               )}
             </div>
           </div>
