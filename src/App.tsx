@@ -276,7 +276,7 @@ export function App() {
                   <IconLock size={16} />
                   <span>{t("preview.banner", { phase: activeBlock.label, prev: prevBlock.label })}</span>
                   <button
-                    className="action action--gen"
+                    className="conn-banner__cta"
                     onClick={() => prevPhase && store.setActivePhase(prevPhase)}
                   >
                     {t("preview.go", { prev: prevBlock.label })}
