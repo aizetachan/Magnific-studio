@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { IconDownload, IconPlus } from "@tabler/icons-react";
+import { IconDownload, IconMountain, IconPalette, IconPlus, IconUser } from "@tabler/icons-react";
 import { useStore } from "@/state/ProjectStore";
 import { config } from "@/config";
 import { uid } from "@/state/seed";
@@ -18,6 +18,13 @@ const GROUPS: Array<{ type: GroupType; label: string; singular: string }> = [
   { type: "location", label: "Entornos", singular: "Entorno" },
   { type: "style", label: "Estilo", singular: "Estilo" },
 ];
+
+/** UI-only placeholder icon while the asset has no image applied. */
+const PH_ICON: Record<GroupType, typeof IconUser> = {
+  character: IconUser,
+  location: IconMountain,
+  style: IconPalette,
+};
 
 const MCP_TYPE: Record<GroupType, string> = {
   character: "character",
@@ -145,15 +152,24 @@ export function LibraryPage({ focusAssetId }: { focusAssetId?: string | null }) 
                 return (
                   <button className="dlib__card librarypage__card" key={a.id} onClick={() => setOpenAsset(a.id)}>
                     <div className="dlib__img">
+                      {/* Type icon underneath: visible until a real image
+                          resolves on top (UI-only cover, never used as data). */}
+                      {(() => {
+                        const Ph = PH_ICON[g.type];
+                        return (
+                          <div className="librarypage__ph">
+                            <Ph size={30} stroke={1.5} />
+                          </div>
+                        );
+                      })()}
                       {a.thumbnailUrl || a.images?.[0] ? (
                         <AssetImg
                           candidates={[a.thumbnailUrl ?? "", ...(a.images ?? [])]}
                           projectId={project.id}
                           alt={a.name}
+                          className="librarypage__cover"
                         />
-                      ) : (
-                        <div className="dlib__img--empty" />
-                      )}
+                      ) : null}
                       <span className="librarypage__count">{count}/6</span>
                       {running ? (
                         <div className="queue" style={{ position: "absolute", left: 6, right: 6, bottom: 6 }}>
