@@ -86,8 +86,9 @@ export function useShareSync(
 
   // Room lifecycle — per (roomId, signed-in user).
   useEffect(() => {
+    if (!roomId || !shareEnabled) return;
     const user = me();
-    if (!roomId || !shareEnabled || !user) return;
+    if (!user) return;
     const prof = meProfile();
     const room = new ShareRoom(roomId, user.uid, user.email, prof?.name, prof?.photo);
     roomRef.current = room;
