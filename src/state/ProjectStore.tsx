@@ -114,10 +114,9 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     project.settings.magnificApiKey,
   ]);
 
-  // Bind this tab to its project id in the URL (so reload/share reopens it).
-  useEffect(() => {
-    setUrlProject(project.id);
-  }, [project.id]);
+  // NOTE: the URL is written only on explicit navigation (switch/create/open),
+  // never on mount — otherwise reloading the dashboard re-adopted the last
+  // file's ?p and Home lost its own /home URL.
 
   // Keep the current project's settings in sync with the GLOBAL credentials, so
   // editing them in Settings (Home) applies immediately to the open project.

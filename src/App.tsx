@@ -127,12 +127,18 @@ export function App() {
     new URLSearchParams(window.location.search).has("p") ? "studio" : "home",
   );
 
-  // Going back to the dashboard: Home has its own URL (no ?p), so a reload
+  // Going back to the dashboard: Home has its own URL (/home), so a reload
   // lands on Home by default instead of re-opening the last file.
   const goHome = () => {
     clearUrlProject();
     setView("home");
   };
+
+  // Normalize the URL when the session starts on the dashboard.
+  useEffect(() => {
+    if (view === "home") clearUrlProject();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // "Ir a Ajustes" from anywhere (e.g. the connect-API modal): switch to Home,
   // where HomeShell/SettingsPage pick up the pending target section.

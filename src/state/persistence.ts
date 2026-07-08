@@ -77,12 +77,13 @@ export function currentProjectId(): string | undefined {
   }
 }
 
-/** Remove the project param — the Home/dashboard has its own clean URL. */
+/** Dashboard URL: /home, without any project param. */
 export function clearUrlProject(): void {
   try {
     const url = new URL(window.location.href);
-    if (url.searchParams.has("p")) {
+    if (url.searchParams.has("p") || url.pathname !== "/home") {
       url.searchParams.delete("p");
+      url.pathname = "/home";
       window.history.replaceState({}, "", url);
     }
   } catch {
@@ -94,8 +95,9 @@ export function clearUrlProject(): void {
 export function setUrlProject(id: string): void {
   try {
     const url = new URL(window.location.href);
-    if (url.searchParams.get("p") !== id) {
+    if (url.searchParams.get("p") !== id || url.pathname !== "/") {
       url.searchParams.set("p", id);
+      url.pathname = "/";
       window.history.replaceState({}, "", url);
     }
   } catch {
