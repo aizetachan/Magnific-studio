@@ -43,6 +43,7 @@ import {
   accountBalance,
   callTool,
   createLibraryAsset,
+  editLibraryAsset,
   uploadCreationBytes,
   creationAssetUrl,
   creationAssetUrlWait,
@@ -1260,6 +1261,31 @@ async function handle(req, res) {
       return json(res, 200, { ok: true, assets: await listLibrary(MCP_URL, token, { type, search }) });
     } catch (e) {
       return json(res, 200, { ok: false, assets: [], error: e instanceof Error ? e.message : String(e) });
+    }
+  }
+
+  // Update an existing Magnific Library entry (reference set / name / desc).
+  // Body: { id (numeric), name?, description?, images: [{creationIdentifier|url}] }.
+  if (req.method === "POST" && path === "/api/director/library-edit") {
+    try {
+      const body = await readBody(req);
+      const sid = sidOf(req);
+      const token = MCP_URL ? await tokenFor(sid).catch(() => undefined) : undefined;
+      if (!token) {
+        return json(res, 200, { ok: false, needsMagnific: true, error: "Conecta tu cuenta de Magnific (OAuth) en Ajustes" });
+      }
+      const id = Number(body.id);
+      if (!Number.isFinite(id)) return json(res, 200, { ok: false, error: "id numérico requerido" });
+      const images = Array.isArray(body.images) ? body.images.filter(Boolean).slice(0, 6) : [];
+      await editLibraryAsset(MCP_URL, token, {
+        id,
+        name: body.name ? String(body.name).slice(0, 50).replace(/[^A-Za-z0-9_-]/g, "-") : undefined,
+        description: body.description,
+        images,
+      });
+      return json(res, 200, { ok: true });
+    } catch (e) {
+      return json(res, 200, { ok: false, error: e instanceof Error ? e.message : String(e) });
     }
   }
 

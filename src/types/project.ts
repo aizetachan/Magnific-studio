@@ -219,6 +219,8 @@ export interface LibraryAsset {
   creationIds?: string[];
   /** Magnific library entry identifier — passed as-is in generation references. */
   magnificIdentifier?: string;
+  /** Numeric Magnific library id (needed to EDIT the entry instead of re-creating). */
+  magnificLibraryId?: number;
   /** In-flight generation job while the asset image is being produced. */
   job?: Job;
   /** In-flight job for the character sheet / environment 3×3 grid. */
