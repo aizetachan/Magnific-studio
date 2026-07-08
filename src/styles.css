@@ -1440,7 +1440,7 @@ code { background: var(--surface-2); border: 1px solid var(--border-1); border-r
 .action--muted:hover:not(:disabled) { background: var(--surface-3); }
 
 /* --- In-file Library: dashboard-style grid + asset modal --- */
-.librarypage { display: flex; flex-direction: column; gap: 26px; }
+.librarypage { display: flex; flex-direction: column; gap: 26px; padding: 0 24px; }
 .librarypage__grouphead { display: flex; align-items: center; gap: 12px; }
 .librarypage__grouphead .mini { display: inline-flex; align-items: center; gap: 5px; }
 .librarypage__import { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
