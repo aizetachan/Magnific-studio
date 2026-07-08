@@ -1195,10 +1195,12 @@ code { background: var(--surface-2); border: 1px solid var(--border-1); border-r
 /* Locked-phase preview: the real page, interaction off. */
 .phase-preview { pointer-events: none; user-select: none; opacity: 0.75; }
 .phase-preview__banner {
-  display: flex; align-items: center; gap: 10px; margin-bottom: 14px;
-  padding: 10px 14px; border-radius: 12px; font-size: 13px;
-  background: color-mix(in srgb, var(--emphasis-2, #ff1a90) 14%, #141014);
+  /* Same shape as the top notifications: content-fit width, centered. */
+  display: flex; align-items: center; gap: 10px; margin: 0 auto 14px;
+  width: fit-content; max-width: 92%;
+  padding: 9px 14px; border-radius: var(--radius-lg); font-size: 13px;
+  background: color-mix(in srgb, var(--emphasis-2, #ff1a90) 16%, #141014);
   border: 1px solid var(--emphasis-0, #ff58ae); color: #fff;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
 }
-.phase-preview__banner span { flex: 1; }
 .director-disabled { pointer-events: none; opacity: 0.55; }
