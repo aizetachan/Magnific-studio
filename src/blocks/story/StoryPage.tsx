@@ -27,6 +27,8 @@ import {
 import { generateAssetPreview, generateAssetPreviews } from "@/blocks/runner";
 import { uid } from "@/state/seed";
 import { showAppAlert } from "@/components/AppAlert";
+import { LockableInput } from "@/share/LockableInput";
+import { LockableTextarea } from "@/share/LockableTextarea";
 
 type Field = "logline" | "tone" | "characters" | "arcs";
 
@@ -286,7 +288,7 @@ export function StoryPage() {
                 </button>
               </span>
             </div>
-            <textarea value={s.logline} onChange={(e) => update((d) => { d.story.logline = e.target.value; })} />
+            <LockableTextarea lockPath="story:logline" value={s.logline} onChange={(e) => update((d) => { d.story.logline = e.target.value; })} />
           </div>
 
           <div className="card" data-flash="style">
@@ -297,7 +299,8 @@ export function StoryPage() {
               Se aplica a TODAS las imágenes (personajes, entornos y planos) para mantener
               la consistencia visual.
             </p>
-            <textarea
+            <LockableTextarea
+              lockPath="story:style"
               placeholder="Define el estilo: técnica, paleta, iluminación, referencias…"
               value={styleAsset?.prompt ?? ""}
               onChange={(e) =>
@@ -322,7 +325,7 @@ export function StoryPage() {
               <label className="card__label">Tono / género / referencias</label>
               <RegenBtn field="tone" />
             </div>
-            <textarea value={s.tone} onChange={(e) => update((d) => { d.story.tone = e.target.value; })} />
+            <LockableTextarea lockPath="story:tone" value={s.tone} onChange={(e) => update((d) => { d.story.tone = e.target.value; })} />
           </div>
 
           <div className="card card--list">
@@ -342,8 +345,8 @@ export function StoryPage() {
                 ))
               : s.arcs.map((a) => (
                   <div className="row" key={a.id}>
-                    <input className="row__title" value={a.title} onChange={(e) => update((d) => { const t = d.story.arcs.find((x) => x.id === a.id)!; t.title = e.target.value; })} />
-                    <input className="row__desc" value={a.description} placeholder="Descripción" onChange={(e) => update((d) => { const t = d.story.arcs.find((x) => x.id === a.id)!; t.description = e.target.value; })} />
+                    <LockableInput lockPath={`arc:${a.id}:title`} className="row__title" value={a.title} onChange={(e) => update((d) => { const t = d.story.arcs.find((x) => x.id === a.id)!; t.title = e.target.value; })} />
+                    <LockableInput lockPath={`arc:${a.id}:desc`} className="row__desc" value={a.description} placeholder="Descripción" onChange={(e) => update((d) => { const t = d.story.arcs.find((x) => x.id === a.id)!; t.description = e.target.value; })} />
                   </div>
                 ))}
           </div>

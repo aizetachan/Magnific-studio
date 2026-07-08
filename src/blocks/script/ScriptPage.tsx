@@ -15,6 +15,8 @@ import { ContextualActions } from "@/components/ContextualActions";
 import { downloadText } from "@/state/download";
 import { newShot, uid } from "@/state/seed";
 import { formatScript } from "./format";
+import { LockableInput } from "@/share/LockableInput";
+import { LockableTextarea } from "@/share/LockableTextarea";
 
 export function ScriptPage() {
   const { project, update } = useStore();
@@ -71,7 +73,8 @@ export function ScriptPage() {
         {project.scenes.map((s, idx) => (
           <article className="scene" key={s.id}>
             <div className="scene__head">
-              <input
+              <LockableInput
+                lockPath={`scene:${s.id}:heading`}
                 className="scene__heading"
                 value={s.heading}
                 onChange={(e) =>
@@ -112,7 +115,8 @@ export function ScriptPage() {
                 <IconTrash size={15} />
               </button>
             </div>
-            <textarea
+            <LockableTextarea
+              lockPath={`scene:${s.id}:action`}
               className="scene__action"
               value={s.action}
               onChange={(e) =>
@@ -121,7 +125,8 @@ export function ScriptPage() {
                 })
               }
             />
-            <textarea
+            <LockableTextarea
+              lockPath={`scene:${s.id}:dialogue`}
               className="scene__dialogue"
               value={s.dialogue}
               onChange={(e) =>
