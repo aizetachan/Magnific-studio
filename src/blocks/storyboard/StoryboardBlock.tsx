@@ -86,7 +86,7 @@ export function buildStoryboardBlock(api: StoreValue): PipelineBlock {
         api.update((d) => {
           const s = d.shots.find((x) => x.id === id)!;
           if (!/ángulo/i.test(s.keyframePrompt)) {
-            s.keyframePrompt += " — variación de ángulo, encuadre alternativo";
+            s.keyframePrompt += ", variación de ángulo, encuadre alternativo";
           }
         });
         await runShotGeneration(api, {

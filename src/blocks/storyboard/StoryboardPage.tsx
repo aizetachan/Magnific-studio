@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   IconCheck,
   IconChevronDown,
@@ -6,7 +6,6 @@ import {
   IconChevronRight,
   IconChevronUp,
   IconDownload,
-  IconLayoutGrid,
   IconLock,
   IconPlus,
   IconTrash,
@@ -14,7 +13,6 @@ import {
 import { useStore } from "@/state/ProjectStore";
 import { useActiveBlock } from "@/state/ActiveBlock";
 import { ContextualActions } from "@/components/ContextualActions";
-import { GateButton } from "@/components/GateButton";
 import { JobBadge } from "@/components/JobBadge";
 import { ModelSelect } from "@/components/ModelSelect";
 import { AssetModal, type PreviewAsset } from "@/components/AssetModal";
@@ -27,8 +25,12 @@ import {
 } from "@/generation/models";
 import { downloadAsset } from "@/state/download";
 import { newShot } from "@/state/seed";
+import { assignReferences } from "@/director/generate";
 import { runBatched, runShotGeneration } from "../runner";
+import { IconSparkles, IconWand } from "@tabler/icons-react";
 import type { Shot } from "@/types/project";
+import { LockableTextarea } from "@/share/LockableTextarea";
+import { showAppAlert } from "@/components/AppAlert";
 
 export function StoryboardPage() {
   const store = useStore();
@@ -36,6 +38,66 @@ export function StoryboardPage() {
   const block = useActiveBlock();
   const gate = block.getGateState();
   const imageModels = useModels("image");
+  const [assigning, setAssigning] = useState(false);
+
+  const libChars = (project.library ?? []).filter((a) => a.type === "character");
+  const libLocs = (project.library ?? []).filter((a) => a.type === "location");
+  const styleAsset = project.library?.find((a) => a.id === project.styleId);
+
+  const runAssign = async (silent = false) => {
+    if (assigning) return;
+    setAssigning(true);
+    try {
+      await assignReferences(store);
+    } catch (e) {
+      if (!silent) showAppAlert(e instanceof Error ? e.message : String(e));
+    } finally {
+      setAssigning(false);
+    }
+  };
+
+  // When reaching Storyboard (Historia + Guion validated), auto-assign scenes
+  // once if there are library assets and nothing has been assigned yet.
+  const autoAssigned = useRef(false);
+  useEffect(() => {
+    if (autoAssigned.current || gate === "locked" || assigning) return;
+    const hasAssets = libChars.length > 0 || libLocs.length > 0;
+    const hasScenes = project.scenes.length > 0;
+    const hasKey = !!project.settings.anthropicApiKey?.trim();
+    const noneAssigned =
+      project.scenes.every((s) => !s.locationId && !(s.characterIds && s.characterIds.length)) &&
+      project.shots.every((sh) => sh.characterIds === undefined);
+    if (hasAssets && hasScenes && hasKey && noneAssigned) {
+      autoAssigned.current = true;
+      void runAssign(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gate, libChars.length, libLocs.length, project.scenes.length]);
+
+  const setSceneLocation = (sceneId: string, locId: string) =>
+    update((d) => {
+      const s = d.scenes.find((x) => x.id === sceneId);
+      if (s) s.locationId = locId || undefined;
+    });
+
+  // Per-shot character overrides (the environment is per scene; inherited).
+  const toggleShotChar = (shotId: string, sceneChars: string[], charId: string) =>
+    update((d) => {
+      const s = d.shots.find((x) => x.id === shotId);
+      if (!s) return;
+      const set = new Set(s.characterIds ?? sceneChars);
+      if (set.has(charId)) set.delete(charId);
+      else set.add(charId);
+      s.characterIds = [...set];
+    });
+  const resetShotRefs = (shotId: string) =>
+    update((d) => {
+      const s = d.shots.find((x) => x.id === shotId);
+      if (s) {
+        s.characterIds = undefined;
+        s.locationId = undefined;
+      }
+    });
   const [preview, setPreview] = useState<PreviewAsset | null>(null);
   const [batchOpen, setBatchOpen] = useState(false);
   const [batchProgress, setBatchProgress] = useState<{ done: number; total: number } | null>(null);
@@ -119,22 +181,6 @@ export function StoryboardPage() {
 
   return (
     <div className="page">
-      <header className="page__head">
-        <div>
-          <h1><IconLayoutGrid size={24} /> Storyboard</h1>
-          <p className="muted">
-            Grid de keyframes del corto completo. Aprueba cada plano para
-            habilitar el gate.
-          </p>
-        </div>
-        <GateButton
-          state={gate}
-          label="Validar storyboard → ir a Producción"
-          onValidate={block.validate}
-          pending={project.shots.filter((s) => !s.approvedKeyframe).length}
-        />
-      </header>
-
       <ContextualActions actions={block.getActions()} />
 
       {project.shots.length > 0 ? (
@@ -155,6 +201,16 @@ export function StoryboardPage() {
             >
               <IconCheck size={15} /> Aprobar todos
             </button>
+          ) : null}
+          {libChars.length > 0 || libLocs.length > 0 ? (
+            <button className="action" disabled={assigning} onClick={() => runAssign()} title="Claude asigna personajes y entorno a cada escena">
+              {assigning ? <span className="spin" /> : <IconWand size={15} />} Asignar referencias
+            </button>
+          ) : null}
+          {styleAsset ? (
+            <span className="conn" title="Estilo visual global activo">
+              <IconSparkles size={14} /> Estilo: {styleAsset.name}
+            </span>
           ) : null}
         </div>
       ) : (
@@ -207,6 +263,26 @@ export function StoryboardPage() {
               <IconTrash size={15} />
             </button>
           </h2>
+
+          {libLocs.length > 0 ? (
+            <div className="scene-refs">
+              <label className="scene-refs__loc">
+                Entorno de la escena
+                <select
+                  className="model-select"
+                  value={scene.locationId ?? ""}
+                  onChange={(e) => setSceneLocation(scene.id, e.target.value)}
+                >
+                  <option value="">Sin entorno</option>
+                  {libLocs.map((l) => (
+                    <option key={l.id} value={l.id}>{l.name}</option>
+                  ))}
+                </select>
+              </label>
+              <span className="muted small">Los personajes se asignan por plano (abajo en cada uno).</span>
+            </div>
+          ) : null}
+
           <div className="grid">
             {shots.map((shot, sidx) => {
               const pre = generation.preflight({
@@ -270,7 +346,8 @@ export function StoryboardPage() {
                       etaSec={expectedSecFor("image", shot.imageModel)}
                     />
                   </div>
-                  <textarea
+                  <LockableTextarea
+                    lockPath={`shot:${shot.id}:keyframePrompt`}
                     className="kf__prompt"
                     value={shot.keyframePrompt}
                     onChange={(e) =>
@@ -280,6 +357,35 @@ export function StoryboardPage() {
                       })
                     }
                   />
+                  {libChars.length > 0 ? (
+                    <div className="shot-refs">
+                      <span className="muted small">Personajes:</span>
+                      <div className="shot-refs__chars">
+                        {libChars.map((c) => {
+                          const on = (shot.characterIds ?? scene.characterIds ?? []).includes(c.id);
+                          return (
+                            <button
+                              key={c.id}
+                              className={`char-pick ${on ? "char-pick--on" : ""}`}
+                              title={c.name}
+                              onClick={() => toggleShotChar(shot.id, scene.characterIds ?? [], c.id)}
+                            >
+                              {c.thumbnailUrl ? (
+                                <img src={c.thumbnailUrl} alt={c.name} />
+                              ) : (
+                                <span className="char-pick__ph">{c.name.slice(0, 1)}</span>
+                              )}
+                            </button>
+                          );
+                        })}
+                        {shot.characterIds !== undefined ? (
+                          <button className="char-pick char-pick--reset" title="Volver a heredar de la escena" onClick={() => resetShotRefs(shot.id)}>
+                            ↺
+                          </button>
+                        ) : null}
+                      </div>
+                    </div>
+                  ) : null}
                   <div className="kf__row muted small">
                     <ModelSelect
                       models={imageModels}
@@ -311,7 +417,7 @@ export function StoryboardPage() {
                         update((d) => {
                           const s = d.shots.find((x) => x.id === shot.id)!;
                           if (!/ángulo/i.test(s.keyframePrompt))
-                            s.keyframePrompt += " — variación de ángulo";
+                            s.keyframePrompt += ", variación de ángulo";
                         });
                         regen(shot);
                       }}

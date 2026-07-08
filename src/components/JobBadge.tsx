@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import type { Job } from "@/types/project";
 
 const LABEL: Record<string, string> = {
-  idle: "—",
+  idle: "·",
   queued: "En cola",
   rendering: "Generando",
   ready: "Listo",

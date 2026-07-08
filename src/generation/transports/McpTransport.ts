@@ -6,9 +6,15 @@ import type {
   TransportCapability,
 } from "@/types/generation";
 import { config } from "@/config";
+import { materializeAsset } from "@/state/assets";
 import { placeholderAsset, simulateJob } from "./simulate";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/** Backend-relative asset paths (/api/director/...) → absolute fetchable URL. */
+export function absDirectorUrl(url: string): string {
+  return url.startsWith("/") ? new URL(url, window.location.origin).href : url;
+}
 
 /**
  * McpTransport — the default conversational generation layer.
@@ -126,11 +132,19 @@ export class McpTransport implements GenerationTransport {
       }
       last = await res.json();
       if (last.status === "ready") {
+        // Local-first: pull the bytes ONCE from the one-shot proxy and store
+        // them on the user's machine; the app uses the returned blob: URL.
+        const assetName = req.assetHint
+          ? `${req.assetHint}_${started.jobId.slice(-6)}`
+          : started.jobId;
+        const localUrl = last.resultUrl
+          ? await materializeAsset(assetName, absDirectorUrl(last.resultUrl))
+          : undefined;
         onProgress?.({ progress: 100, status: "ready" });
         return {
           ok: true,
           taskId: last.identifier ?? started.jobId,
-          resultUrl: last.resultUrl,
+          resultUrl: localUrl,
           creditsCharged: last.credits ?? 0,
           model: last.model,
           mode: "mcp_default",

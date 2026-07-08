@@ -75,5 +75,7 @@ export async function downloadAllZip(project: Project): Promise<number> {
   if (count === 0) return 0;
   const out = await zip.generateAsync({ type: "blob" });
   saveBlob(out, `${slug(project.name) || "proyecto"}-assets.zip`);
+  // Counts as "took a copy" for the unsaved-changes guard (fallback mode).
+  window.dispatchEvent(new Event("ms:exported"));
   return count;
 }

@@ -17,8 +17,15 @@ function flag(v: string | undefined): boolean {
 }
 
 export const config = {
-  /** Anthropic Messages API base. Proxy path by default. */
-  anthropicBase: env.VITE_ANTHROPIC_BASE ?? "/api/anthropic",
+  /**
+   * Anthropic Messages API base. In dev the Vite proxy (`/api/anthropic`)
+   * avoids CORS; in production there is no proxy, so the browser calls
+   * Anthropic directly (the direct-browser-access header is always sent and
+   * the user's key never touches our server).
+   */
+  anthropicBase:
+    env.VITE_ANTHROPIC_BASE ??
+    (import.meta.env.PROD ? "https://api.anthropic.com" : "/api/anthropic"),
   /** Magnific REST API base. Proxy path by default. */
   magnificApiBase: env.VITE_MAGNIFIC_API_BASE ?? "/api/magnific",
   /** Magnific MCP base. Proxy path by default. */

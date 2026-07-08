@@ -145,11 +145,18 @@ export function buildGenerationCall(kind, { prompt, model, references, libraryRe
   const refs = (references ?? []).filter(Boolean);
   // Typed Library references (character/style/locations) — passed as-is for
   // visual consistency. Video only accepts character|product references.
-  const lib = (libraryRefs ?? []).filter((r) => r && r.type && r.identifier);
-  const libImageRefs = lib.map((r) => ({ type: r.type, identifier: r.identifier }));
+  const lib = (libraryRefs ?? []).filter((r) => r && r.type && (r.identifier || r.creationId));
+  // Images accept the library entry identifier as-is.
+  const libImageRefs = lib.filter((r) => r.identifier).map((r) => ({ type: r.type, identifier: r.identifier }));
+  // Video references of type character/product require a URL (an asset URL or
+  // "creation:SQID"), NOT the library identifier — so use the source-image
+  // creation as `url`. Refs without a usable creation are dropped (can't be used).
   const libVideoRefs = lib
-    .filter((r) => r.type === "character" || r.type === "product")
-    .map((r) => ({ type: r.type, identifier: r.identifier }));
+    .filter((r) => (r.type === "character" || r.type === "product") && (r.url || r.creationId))
+    .map((r) => ({
+      type: r.type,
+      url: r.url ?? (String(r.creationId).startsWith("creation:") ? String(r.creationId) : `creation:${r.creationId}`),
+    }));
 
   if (kind === "image" || kind === "edit") {
     const args = { prompt };

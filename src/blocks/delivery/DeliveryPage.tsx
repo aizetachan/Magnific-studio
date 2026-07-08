@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { IconCheck, IconLock, IconPackage } from "@tabler/icons-react";
+import { IconCheck, IconLock } from "@tabler/icons-react";
 import { useStore } from "@/state/ProjectStore";
 import { useActiveBlock } from "@/state/ActiveBlock";
 import { ContextualActions } from "@/components/ContextualActions";
@@ -78,15 +78,6 @@ export function DeliveryPage() {
 
   return (
     <div className="page">
-      <header className="page__head">
-        <div>
-          <h1><IconPackage size={24} /> Entrega</h1>
-          <p className="muted">
-            Monta el corto con todos los assets y entrégalo.
-          </p>
-        </div>
-      </header>
-
       <div className="tabs">
         <button
           className={`tab ${tab === "montaje" ? "tab--on" : ""}`}

@@ -12,12 +12,13 @@ export async function askClaude(
   history: ClaudeMessage[],
   offlineReply: () => string,
   maxTokens = 1024,
+  extraSystem = "",
 ): Promise<string> {
   const client = new AnthropicClient(
     api.project.settings.anthropicApiKey,
     api.project.settings.directorModel,
   );
-  const reply = await client.send(ctx, history, offlineReply, maxTokens);
+  const reply = await client.send(ctx, history, offlineReply, maxTokens, extraSystem);
   api.meter({
     phase: ctx.phase,
     scope: ctx.implicitReferent,

@@ -8,6 +8,7 @@ import type {
 import type { StoreValue } from "@/state/ProjectStore";
 import { generateScript } from "@/director/generate";
 import { ScriptPage } from "./ScriptPage";
+import { showAppAlert } from "@/components/AppAlert";
 
 /**
  * Script block — works scene structure and text; prepares the scene->shots map
@@ -46,7 +47,7 @@ export function buildScriptBlock(api: StoreValue): PipelineBlock {
         try {
           await generateScript(api);
         } catch (e) {
-          alert(e instanceof Error ? e.message : String(e));
+          showAppAlert(e instanceof Error ? e.message : String(e));
         }
       },
     },

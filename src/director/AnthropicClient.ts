@@ -1,5 +1,6 @@
 import type { PageContext } from "@/types/pipeline";
 import { config } from "@/config";
+import { getLang } from "@/i18n";
 
 /**
  * Thin client over the Anthropic Messages API (/v1/messages).
@@ -33,9 +34,17 @@ export interface ClaudeMessage {
   content: string;
 }
 
-// Approx. Opus-class pricing per million tokens (USD). Used only for the meter.
-const PRICE_IN_PER_MTOK = 5;
-const PRICE_OUT_PER_MTOK = 25;
+// Approx. pricing per million tokens (USD) by model family. Used only for the meter.
+const PRICING: Array<{ prefix: string; inPerMTok: number; outPerMTok: number }> = [
+  { prefix: "claude-fable", inPerMTok: 10, outPerMTok: 50 },
+  { prefix: "claude-opus", inPerMTok: 5, outPerMTok: 25 },
+  { prefix: "claude-sonnet", inPerMTok: 3, outPerMTok: 15 },
+  { prefix: "claude-haiku", inPerMTok: 1, outPerMTok: 5 },
+];
+
+function pricingFor(model: string) {
+  return PRICING.find((p) => model.startsWith(p.prefix)) ?? PRICING[1];
+}
 
 export function buildSystemPrompt(ctx: PageContext): string {
   return [
@@ -57,6 +66,9 @@ export function buildSystemPrompt(ctx: PageContext): string {
     "- Si te piden algo fuera de fase (una acción bloqueada), NO lo ejecutes: redirige con suavidad",
     "  indicando en qué fase se hace y qué falta para llegar.",
     "- Sé conciso. No generas imágenes ni vídeo tú mismo: eso lo ejecuta la capa de generación de Magnific.",
+    getLang() === "en"
+      ? "- IMPORTANT: The user's interface language is ENGLISH — always reply in English."
+      : "- IMPORTANTE: El idioma de la interfaz del usuario es ESPAÑOL — responde siempre en español.",
   ].join("\n");
 }
 
@@ -75,6 +87,7 @@ export class AnthropicClient {
     history: ClaudeMessage[],
     offlineReply: () => string,
     maxTokens = 1024,
+    extraSystem = "",
   ): Promise<ClaudeReply> {
     if (!this.hasKey) {
       const text = offlineReply();
@@ -103,7 +116,7 @@ export class AnthropicClient {
       body: JSON.stringify({
         model: this.model,
         max_tokens: maxTokens,
-        system: buildSystemPrompt(ctx),
+        system: extraSystem ? `${buildSystemPrompt(ctx)}\n\n${extraSystem}` : buildSystemPrompt(ctx),
         messages: history.map((m) => ({ role: m.role, content: m.content })),
       }),
     });
@@ -115,21 +128,28 @@ export class AnthropicClient {
 
     const data = (await res.json()) as {
       content: Array<{ type: string; text?: string }>;
+      stop_reason?: string;
       usage: { input_tokens: number; output_tokens: number };
     };
+    // Fable 5 safety classifiers can decline a request with HTTP 200 and empty
+    // content — surface it instead of returning a silently-empty reply.
+    if (data.stop_reason === "refusal") {
+      throw new Error("El modelo rechazó la petición (stop_reason: refusal). Reformula o prueba otro modelo.");
+    }
     const text = data.content
       .filter((c) => c.type === "text")
       .map((c) => c.text ?? "")
       .join("\n");
     const inputTokens = data.usage.input_tokens;
     const outputTokens = data.usage.output_tokens;
+    const price = pricingFor(this.model);
     return {
       text,
       inputTokens,
       outputTokens,
       costUsd:
-        (inputTokens / 1e6) * PRICE_IN_PER_MTOK +
-        (outputTokens / 1e6) * PRICE_OUT_PER_MTOK,
+        (inputTokens / 1e6) * price.inPerMTok +
+        (outputTokens / 1e6) * price.outPerMTok,
       offline: false,
     };
   }

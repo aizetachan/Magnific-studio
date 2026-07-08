@@ -5,7 +5,6 @@ import {
   IconChevronRight,
   IconDownload,
   IconLock,
-  IconMovie,
   IconPlayerPlay,
 } from "@tabler/icons-react";
 import { useStore } from "@/state/ProjectStore";
@@ -24,6 +23,7 @@ import {
 import { downloadAsset } from "@/state/download";
 import { runBatched, runShotGeneration } from "../runner";
 import type { Scene, Shot } from "@/types/project";
+import { LockableTextarea } from "@/share/LockableTextarea";
 
 export function ProductionPage() {
   const store = useStore();
@@ -98,23 +98,16 @@ export function ProductionPage() {
 
   return (
     <div className="page production">
-      <header className="page__head">
-        <div>
-          <h1><IconMovie size={24} /> Producción</h1>
-          <p className="muted">
-            Escena por escena, plano por plano. Cada plano es un job de vídeo con
-            su coste y estado.
-          </p>
-        </div>
-        {project.shots.length > 0 ? (
+      {project.shots.length > 0 ? (
+        <div className="actions">
           <button
             className="action action--gen"
             onClick={() => setBatchScope("all")}
           >
             Generar todos los vídeos
           </button>
-        ) : null}
-      </header>
+        </div>
+      ) : null}
 
       {batchProgress ? (
         <p className="onboard">
@@ -251,7 +244,8 @@ export function ProductionPage() {
                         <span className="tag">Plano {shot.order}</span>
                       </div>
                       <div className="prod-card__body">
-                        <textarea
+                        <LockableTextarea
+                          lockPath={`shot:${shot.id}:videoPrompt`}
                           className="kf__prompt"
                           value={shot.videoPrompt}
                           onChange={(e) =>
@@ -324,7 +318,7 @@ export function ProductionPage() {
                                   (x) => x.id === shot.id,
                                 )!;
                                 if (!/cinematogr/i.test(s.videoPrompt))
-                                  s.videoPrompt += " — más cinematográfico";
+                                  s.videoPrompt += ", más cinematográfico";
                               });
                               regen(shot);
                             }}

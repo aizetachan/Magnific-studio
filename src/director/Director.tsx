@@ -1,13 +1,24 @@
 import { useEffect, useState } from "react";
-import { IconMessage, IconSparkles, IconX } from "@tabler/icons-react";
+import { IconArmchair, IconMessage, IconSparkles, IconX } from "@tabler/icons-react";
 import { useStore } from "@/state/ProjectStore";
 import { useActiveBlock } from "@/state/ActiveBlock";
 import { resolveIntent } from "./orchestrator";
 import { askClaude } from "./ask";
-import { generateMoreScenes } from "./generate";
+import { editStyle, generateMoreScenes } from "./generate";
 import { runShotGeneration } from "@/blocks/runner";
+import { uid } from "@/state/seed";
 import type { Project } from "@/types/project";
 import type { ClaudeMessage } from "./AnthropicClient";
+
+/** Lets the Director APPLY agreed edits to project fields from free conversation. */
+const APPLY_PROTOCOL = [
+  "Puedes APLICAR cambios concretos a campos del proyecto cuando el usuario los confirme o pida",
+  "(por ejemplo, al validar una opción que has propuesto).",
+  "Para aplicar, TERMINA tu respuesta con UNA sola línea EXACTA y nada después:",
+  '@@APPLY {"field":"style|tone|logline","value":"<texto nuevo completo>"}',
+  "donde 'style' = estilo visual global, 'tone' = tono/género/referencias, 'logline' = logline.",
+  "Incluye @@APPLY SOLO cuando haya un cambio acordado, y no menciones el JSON en la prosa.",
+].join("\n");
 
 /** Detect "genera imagen/vídeo para la escena N plano M" → the target shot. */
 function parseShotGen(q: string, project: Project) {
@@ -68,22 +79,95 @@ export function Director() {
   const [reply, setReply] = useState<string | null>(null);
   const [redirected, setRedirected] = useState(false);
   const [panelOpen, setPanelOpen] = useState(false);
+  const [barOpen, setBarOpen] = useState(true);
+  const [replySticky, setReplySticky] = useState(false);
   const [convo, setConvo] = useState<ClaudeMessage[]>([]);
   const [thinking, setThinking] = useState(false);
   const [running, setRunning] = useState(false);
 
-  // Auto-dismiss the reply banner after 5s (only when not actively working).
+  // Auto-dismiss QUICK action toasts after 5s. Conversation replies are "sticky"
+  // (the full thread is logged in the panel; the toast stays until dismissed).
   useEffect(() => {
-    if (!reply || running) return;
+    if (!reply || running || replySticky) return;
     const t = setTimeout(() => setReply(null), 5000);
     return () => clearTimeout(t);
-  }, [reply, running]);
+  }, [reply, running, replySticky]);
+
+  /** Parse + apply a trailing @@APPLY directive; returns the clean visible text. */
+  const applyDirective = (answer: string): string => {
+    const m = answer.match(/@@APPLY\s*(\{[\s\S]*\})\s*$/);
+    if (!m) return answer;
+    const clean = answer.replace(/@@APPLY[\s\S]*$/, "").trim();
+    let parsed: { field?: string; value?: string };
+    try {
+      parsed = JSON.parse(m[1]);
+    } catch {
+      return clean;
+    }
+    const field = parsed.field;
+    const value = String(parsed.value ?? "");
+    if (!value || !["style", "tone", "logline"].includes(field ?? "")) return clean;
+    store.update((d) => {
+      if (field === "tone") d.story.tone = value;
+      else if (field === "logline") d.story.logline = value;
+      else if (field === "style") {
+        d.library = d.library ?? [];
+        let a = d.styleId ? d.library.find((x) => x.id === d.styleId) : d.library.find((x) => x.type === "style");
+        if (!a) {
+          a = { id: uid("asset"), type: "style", name: "Estilo del corto", prompt: "", createdAt: Date.now() };
+          d.library.push(a);
+          d.styleId = a.id;
+        }
+        a.prompt = value;
+      }
+    });
+    window.dispatchEvent(new CustomEvent("ms:flash", { detail: { target: field } }));
+    return clean;
+  };
+
+  /**
+   * Multi-turn conversation. The full thread is logged in the side panel (open
+   * with the 💬 icon to consult it); when the panel is closed the latest reply
+   * shows as a sticky pink toast. The Director can APPLY agreed edits in place.
+   */
+  const converse = async (q: string) => {
+    const ctx = block.getPageContext();
+    const next: ClaudeMessage[] = [...convo, { role: "user", content: q }];
+    setConvo(next);
+    setThinking(true);
+    if (!panelOpen) {
+      setReplySticky(true);
+      setReply("Pensando…");
+    }
+    try {
+      const raw = await askClaude(
+        store,
+        ctx,
+        next,
+        () => offlineReply(q, ctx.phaseLabel, ctx.implicitReferent),
+        1024,
+        APPLY_PROTOCOL,
+      );
+      const clean = applyDirective(raw);
+      setConvo([...next, { role: "assistant", content: clean }]);
+      if (!panelOpen) {
+        setReplySticky(true);
+        setRedirected(false);
+        setReply(clean);
+      } else {
+        setReply(null);
+      }
+    } finally {
+      setThinking(false);
+    }
+  };
 
   const runCommand = async () => {
     const q = text.trim();
     if (!q || running) return;
     setText("");
     setRedirected(false);
+    setReplySticky(false); // quick action toasts auto-dismiss again
     const ctx = block.getPageContext();
 
     // 1) Natural language: generate a keyframe/video for a specific shot.
@@ -127,6 +211,23 @@ export function Director() {
       return;
     }
 
+    // 2.5) Direct edit: adjust the global visual style in place + flash it pink.
+    const ql = q.toLowerCase();
+    if (/\bestilo\b/.test(ql) && /(ajust|cambi|modific|aplica|haz|pon|m[aá]s)/.test(ql)) {
+      setRunning(true);
+      setReply("Ajustando el estilo visual…");
+      try {
+        await editStyle(store, q);
+        setReply("Estilo visual actualizado.");
+        window.dispatchEvent(new CustomEvent("ms:flash", { detail: { target: "style" } }));
+      } catch (e) {
+        setReply(e instanceof Error ? e.message : String(e));
+      } finally {
+        setRunning(false);
+      }
+      return;
+    }
+
     // 2) Keyword intent → run the matching block action.
     const result = resolveIntent(q, ctx, block.getActions());
     if (result.action) {
@@ -141,36 +242,8 @@ export function Director() {
       return;
     }
 
-    // 3) No action matched: let Claude actually answer (instead of "no entiendo").
-    setRunning(true);
-    setReply("Pensando…");
-    try {
-      const answer = await askClaude(
-        store,
-        ctx,
-        [{ role: "user", content: q }],
-        () => result.reply,
-      );
-      setReply(answer);
-      setRedirected(result.redirected);
-    } finally {
-      setRunning(false);
-    }
-  };
-
-  const sendConversation = async (q: string) => {
-    const ctx = block.getPageContext();
-    const next: ClaudeMessage[] = [...convo, { role: "user", content: q }];
-    setConvo(next);
-    setThinking(true);
-    try {
-      const answer = await askClaude(store, ctx, next, () =>
-        offlineReply(q, ctx.phaseLabel, ctx.implicitReferent),
-      );
-      setConvo([...next, { role: "assistant", content: answer }]);
-    } finally {
-      setThinking(false);
-    }
+    // 3) No action matched: it's a conversation → persistent inline thread.
+    await converse(q);
   };
 
   const ctx = block.getPageContext();
@@ -183,31 +256,37 @@ export function Director() {
           scope={ctx.implicitReferent}
           convo={convo}
           thinking={thinking}
-          onSend={sendConversation}
+          onSend={converse}
           onClose={() => setPanelOpen(false)}
         />
       ) : null}
 
       <div className="director">
         {reply ? (
-          <div className={`director__reply ${redirected ? "is-redirect" : ""}`}>
+          <div className={`director__reply ${redirected ? "is-redirect" : ""} ${replySticky ? "is-sticky" : ""}`}>
             <span className="director__avatar">
               <IconSparkles size={16} />
             </span>
-            <span>{reply}</span>
+            <span className="director__reply-text">{reply}</span>
+            {replySticky && convo.length > 0 ? (
+              <button className="mini" title="Ver la conversación completa" onClick={() => { setPanelOpen(true); setReply(null); }}>
+                Ver chat
+              </button>
+            ) : null}
             <button className="director__dismiss" onClick={() => setReply(null)}>
               <IconX size={15} />
             </button>
           </div>
         ) : null}
-        <div className="director__bar">
+        <div className={`director__bar ${barOpen ? "" : "director__bar--collapsed"}`}>
           <span className="director__scope" title="Scope de página activo">
             {ctx.phaseLabel}
           </span>
           <input
             placeholder={`Pide algo al Director… (scope: ${ctx.implicitReferent})`}
             value={text}
-            disabled={running}
+            disabled={running || thinking}
+            tabIndex={barOpen ? 0 : -1}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Enter") void runCommand();
@@ -215,10 +294,10 @@ export function Director() {
           />
           <button
             className="director__go"
-            disabled={running}
+            disabled={running || thinking}
             onClick={() => void runCommand()}
           >
-            {running ? "…" : "Enviar"}
+            {running || thinking ? "…" : "Enviar"}
           </button>
           <button
             className="director__panel-toggle"
@@ -226,6 +305,14 @@ export function Director() {
             title="Panel de Director (conversación profunda)"
           >
             <IconMessage size={16} />
+          </button>
+          <button
+            className="director__chair"
+            onClick={() => setBarOpen((v) => !v)}
+            title={barOpen ? "Cerrar el Director" : "Abrir el Director"}
+            aria-label={barOpen ? "Cerrar el Director" : "Abrir el Director"}
+          >
+            <IconArmchair size={16} />
           </button>
         </div>
       </div>

@@ -1,0 +1,11 @@
+# NEVER ship local content or credentials (the owner's storage/ holds
+# generated assets and OAuth tokens from local use).
+storage
+.env
+.env.*
+!.env.example
+.claude
+node_modules
+dist
+*.log
+.git

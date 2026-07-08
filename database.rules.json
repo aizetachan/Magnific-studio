@@ -1,0 +1,18 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "rooms": {
+      "$roomId": {
+        ".read": "auth != null",
+        ".write": "auth != null",
+        "members": {
+          "$uid": { ".write": "auth != null && auth.uid === $uid" }
+        },
+        "presence": {
+          "$uid": { ".write": "auth != null && auth.uid === $uid" }
+        }
+      }
+    }
+  }
+}

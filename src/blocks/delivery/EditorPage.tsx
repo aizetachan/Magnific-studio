@@ -3,6 +3,7 @@ import { IconMovie, IconWand } from "@tabler/icons-react";
 import { useStore } from "@/state/ProjectStore";
 import { useActiveBlock } from "@/state/ActiveBlock";
 import { config } from "@/config";
+import { storeAssetBlob } from "@/state/assets";
 import { AudioSection } from "./AudioSection";
 import { Timeline } from "./TimelineEditor";
 import { ensureTimeline, readyShots } from "./timeline";
@@ -58,38 +59,72 @@ export function EditorPage() {
       };
     });
     try {
-      const body = {
-        muteVideo: !!edit.muteVideo,
-        clips: includedClips.map((c) => ({
-          url: shotOf(c.shotId)?.videoUrl,
+      // Local-first: the clip/audio bytes live on the user's machine (blob:
+      // URLs), so upload each input to the server's EPHEMERAL /tmp workspace,
+      // render there, and receive the mp4 back in the response — the server
+      // stores nothing.
+      const rid = Math.random().toString(36).slice(2, 14);
+      const uploaded = new Map<string, string>(); // srcUrl -> uploaded name
+      const uploadInput = async (srcUrl: string, name: string) => {
+        const prev = uploaded.get(srcUrl);
+        if (prev) return prev;
+        const blob = await (await fetch(srcUrl)).blob();
+        const r = await fetch(
+          `${config.directorBase}/render-input?render=${rid}&name=${encodeURIComponent(name)}`,
+          { method: "POST", credentials: "include", body: blob },
+        );
+        const d = (await r.json()) as { ok: boolean; error?: string };
+        if (!d.ok) throw new Error(d.error ?? "No se pudo subir un clip");
+        uploaded.set(srcUrl, name);
+        return name;
+      };
+
+      const clips = [];
+      for (let i = 0; i < includedClips.length; i++) {
+        const c = includedClips[i];
+        const u = shotOf(c.shotId)?.videoUrl;
+        if (!u) continue;
+        clips.push({
+          file: await uploadInput(u, `clip${i}.mp4`),
           inSec: c.inSec,
           outSec: c.outSec,
           mute: !!c.muted,
-        })),
-        audio: edit.audio
-          .filter((p) => !p.muted)
-          .map((p) => {
-            const t = trackOf(p.trackId);
-            return t?.url
-              ? { url: t.url, offsetSec: p.offsetSec, volume: p.volume, inSec: p.inSec, outSec: p.outSec }
-              : null;
-          })
-          .filter(Boolean),
-      };
+        });
+      }
+      const audio = [];
+      const placements = edit.audio.filter((p) => !p.muted);
+      for (let i = 0; i < placements.length; i++) {
+        const p = placements[i];
+        const t = trackOf(p.trackId);
+        if (!t?.url) continue;
+        audio.push({
+          file: await uploadInput(t.url, `audio${i}.mp3`),
+          offsetSec: p.offsetSec,
+          volume: p.volume,
+          inSec: p.inSec,
+          outSec: p.outSec,
+        });
+      }
+
       const res = await fetch(`${config.directorBase}/render`, {
         method: "POST",
         credentials: "include",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify(body),
+        body: JSON.stringify({ render: rid, muteVideo: !!edit.muteVideo, clips, audio }),
       });
-      const data = (await res.json()) as { ok: boolean; url?: string; error?: string };
-      if (!data.ok || !data.url) throw new Error(data.error ?? "Falló el render");
+      const ctype = res.headers.get("content-type") ?? "";
+      if (!ctype.includes("video/")) {
+        const data = (await res.json()) as { ok: boolean; error?: string };
+        throw new Error(data.error ?? "Falló el render");
+      }
+      // Store the final video on the user's machine like any other asset.
+      const finalUrl = await storeAssetBlob(`video-final_${rid.slice(0, 6)}`, await res.blob(), ".mp4");
       update((d) => {
-        d.delivery.finalVideoUrl = data.url;
+        d.delivery.finalVideoUrl = finalUrl;
         if (d.delivery.finalVideoJob) {
           d.delivery.finalVideoJob.status = "ready";
           d.delivery.finalVideoJob.progress = 100;
-          d.delivery.finalVideoJob.resultUrl = data.url;
+          d.delivery.finalVideoJob.resultUrl = finalUrl;
           d.delivery.finalVideoJob.updatedAt = Date.now();
         }
         if (d.gates.delivery === "in_progress") d.gates.delivery = "ready";

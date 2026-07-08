@@ -7,16 +7,16 @@ import {
   IconLock,
   IconPlus,
   IconTrash,
-  IconWriting,
   IconX,
 } from "@tabler/icons-react";
 import { useStore } from "@/state/ProjectStore";
 import { useActiveBlock } from "@/state/ActiveBlock";
 import { ContextualActions } from "@/components/ContextualActions";
-import { GateButton } from "@/components/GateButton";
 import { downloadText } from "@/state/download";
 import { newShot, uid } from "@/state/seed";
 import { formatScript } from "./format";
+import { LockableInput } from "@/share/LockableInput";
+import { LockableTextarea } from "@/share/LockableTextarea";
 
 export function ScriptPage() {
   const { project, update } = useStore();
@@ -43,18 +43,6 @@ export function ScriptPage() {
 
   return (
     <div className="page">
-      <header className="page__head">
-        <div>
-          <h1><IconWriting size={24} /> Guion</h1>
-          <p className="muted">Guion profesional, escena a escena.</p>
-        </div>
-        <GateButton
-          state={gate}
-          label="Guion validado → generar storyboard"
-          onValidate={block.validate}
-        />
-      </header>
-
       <ContextualActions actions={block.getActions()} />
 
       <div className="actions">
@@ -85,7 +73,8 @@ export function ScriptPage() {
         {project.scenes.map((s, idx) => (
           <article className="scene" key={s.id}>
             <div className="scene__head">
-              <input
+              <LockableInput
+                lockPath={`scene:${s.id}:heading`}
                 className="scene__heading"
                 value={s.heading}
                 onChange={(e) =>
@@ -126,7 +115,8 @@ export function ScriptPage() {
                 <IconTrash size={15} />
               </button>
             </div>
-            <textarea
+            <LockableTextarea
+              lockPath={`scene:${s.id}:action`}
               className="scene__action"
               value={s.action}
               onChange={(e) =>
@@ -135,7 +125,8 @@ export function ScriptPage() {
                 })
               }
             />
-            <textarea
+            <LockableTextarea
+              lockPath={`scene:${s.id}:dialogue`}
               className="scene__dialogue"
               value={s.dialogue}
               onChange={(e) =>
@@ -195,7 +186,7 @@ function ScriptPreview({
     <div className="asset-modal" role="dialog" aria-modal="true" onClick={onClose}>
       <div className="script-modal" onClick={(e) => e.stopPropagation()}>
         <div className="script-modal__head">
-          <strong>Guion — {title}</strong>
+          <strong>Guion: {title}</strong>
           <div className="kf__row">
             <button className="mini" onClick={onDownload}>
               <IconDownload size={15} /> Descargar .txt
