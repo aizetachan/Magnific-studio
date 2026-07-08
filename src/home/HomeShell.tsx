@@ -270,8 +270,8 @@ export function HomeShell({ onEnterStudio }: { onEnterStudio: () => void }) {
           <button className={`home__navitem ${section === "recents" ? "home__navitem--active" : ""}`} onClick={() => setSection("recents")}>
             <IconClock size={18} /> Recents
           </button>
-          <button className={`home__navitem ${section === "mock" && mockTitle === "Community" ? "home__navitem--active" : ""}`} onClick={() => openMock("Community")}><IconUsers size={18} /> Community</button>
-          <button className={`home__navitem ${section === "mock" && mockTitle === "Stock" ? "home__navitem--active" : ""}`} onClick={() => openMock("Stock")}><IconStack2 size={18} /> Stock</button>
+          <button className="home__navitem" onClick={() => window.open("https://www.magnific.com/app/explore#from_element=mainmenu", "_blank", "noopener")}><IconUsers size={18} /> Community</button>
+          <button className="home__navitem" onClick={() => window.open("https://www.magnific.com/stock#from_element=mainmenu", "_blank", "noopener")}><IconStack2 size={18} /> Stock</button>
           <button className={`home__navitem ${section === "mock" && mockTitle === "Library" ? "home__navitem--active" : ""}`} onClick={() => openMock("Library")}><IconBook2 size={18} /> Library</button>
 
           <div className="home__sep" />
