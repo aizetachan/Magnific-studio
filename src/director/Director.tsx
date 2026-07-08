@@ -79,7 +79,8 @@ export function Director() {
   const [reply, setReply] = useState<string | null>(null);
   const [redirected, setRedirected] = useState(false);
   const [panelOpen, setPanelOpen] = useState(false);
-  const [barOpen, setBarOpen] = useState(true);
+  // Closed by default: the chair invites you in when you need the Director.
+  const [barOpen, setBarOpen] = useState(false);
   const [replySticky, setReplySticky] = useState(false);
   const [convo, setConvo] = useState<ClaudeMessage[]>([]);
   const [thinking, setThinking] = useState(false);
