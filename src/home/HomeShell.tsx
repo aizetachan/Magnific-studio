@@ -314,7 +314,7 @@ export function HomeShell({ onEnterStudio }: { onEnterStudio: () => void }) {
           <button className={`home__navitem ${section === "all" ? "home__navitem--active" : ""}`} onClick={() => setSection("all")}>
             <IconApps size={18} /> {t("home.all")}
           </button>
-          <button className={`home__navitem ${section === "mock" && mockTitle === "Resources" ? "home__navitem--active" : ""}`} onClick={() => openMock("Resources")}><IconLayoutBoardSplit size={18} /> {t("home.resources")}</button>
+          <button className="home__navitem home__navitem--disabled" disabled><IconLayoutBoardSplit size={18} /> {t("home.resources")} <span className="home__soon">{t("common.soon")}</span></button>
           <button className={`home__navitem ${section === "trash" ? "home__navitem--active" : ""}`} onClick={() => setSection("trash")}>
             <IconTrash size={18} /> {t("home.trash")}
           </button>

@@ -1064,3 +1064,11 @@ code { background: var(--surface-2); border: 1px solid var(--border-1); border-r
 }
 .uisel__opt:hover { background: var(--panel-6); }
 .uisel__opt--on { color: var(--emphasis-0); }
+
+/* Disabled nav item with a "soon" tag (Resources). */
+.home__navitem--disabled { opacity: 0.55; cursor: default; }
+.home__soon {
+  margin-left: auto; font-size: 10px; text-transform: uppercase;
+  letter-spacing: 0.4px; padding: 2px 6px; border-radius: 999px;
+  background: var(--ghost-1); color: var(--fg-2, #999);
+}

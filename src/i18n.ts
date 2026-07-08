@@ -132,6 +132,7 @@ const STRINGS = {
     "home.stock": "Stock",
     "home.drafts": "Drafts",
     "home.resources": "Resources",
+    "common.soon": "soon",
     "home.newProject": "New project",
     "home.searchPlaceholder": "Search projects…",
     // Dashboard library
@@ -245,6 +246,7 @@ const STRINGS = {
     "home.stock": "Stock",
     "home.drafts": "Borradores",
     "home.resources": "Recursos",
+    "common.soon": "pronto",
     "home.newProject": "Nuevo proyecto",
     "home.searchPlaceholder": "Buscar proyectos…",
     "dlib.title": "Biblioteca",
