@@ -980,3 +980,9 @@ code { background: var(--surface-2); border: 1px solid var(--border-1); border-r
 }
 .share-invite-row { display: flex; gap: 8px; margin-top: 10px; }
 .share-invite-row input { flex: 1; }
+
+/* Login brand lockup: M mark + wordmark, both in white over the photo card. */
+.auth-gate__brand {
+  display: flex; flex-direction: column; align-items: center; gap: 10px;
+  color: #fff; margin-bottom: 2px;
+}

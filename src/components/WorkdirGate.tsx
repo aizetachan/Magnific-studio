@@ -88,6 +88,11 @@ export function WorkdirGate() {
               Recomendado: elige una carpeta de trabajo y todo se guardará ahí
               automáticamente.
             </p>
+            <p className="muted small">
+              Al elegirla, tu navegador te pedirá confirmación para editar
+              archivos en esa carpeta — pulsa «Permitir». Ese aviso es del
+              navegador y es tu garantía de control sobre la carpeta.
+            </p>
           </div>
           <div className="confirm-modal__actions">
             <button className="action" onClick={() => commit("browser")}>

@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { IconBrandGoogleFilled, IconSparkles } from "@tabler/icons-react";
+import { IconBrandGoogleFilled } from "@tabler/icons-react";
+import { BrandMark, Wordmark } from "./Brand";
 import type { User } from "firebase/auth";
 import { authEnabled, loginWithGoogle, watchAuth } from "./firebase";
 
@@ -26,7 +27,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
     return (
       <div className="auth-gate">
         <div className="auth-gate__card">
-          <IconSparkles size={28} />
+          <BrandMark size={40} />
           <p className="muted">Cargando…</p>
         </div>
       </div>
@@ -36,8 +37,10 @@ export function AuthGate({ children }: { children: ReactNode }) {
     return (
       <div className="auth-gate">
         <div className="auth-gate__card">
-          <IconSparkles size={28} />
-          <h1>Magnific Studio</h1>
+          <div className="auth-gate__brand">
+            <BrandMark size={52} />
+            <Wordmark width={128} />
+          </div>
           <p className="muted">
             Inicia sesión para usar el estudio. Tu contenido se guarda solo en
             tu máquina (para esta versión alpha); conectarás tu propia cuenta
