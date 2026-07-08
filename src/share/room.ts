@@ -274,13 +274,20 @@ export class ShareRoom {
     this.subs.push(
       onValue(child(this.root, "locks"), (snap) => {
         const out: LockEntry[] = [];
-        const now = Date.now();
         snap.forEach((c) => {
-          const v = c.val() as { uid: string; email: string; at: number };
-          if (now - (v.at ?? 0) < 30_000 || v.uid) {
-            out.push({ path: decKey(c.key ?? ""), uid: v.uid, email: v.email });
-          }
+          const v = c.val() as { uid?: string; email?: string; path?: string };
+          // Path travels IN the value (older builds relied on decoding the
+          // key, a fragile step); tolerate legacy entries via decKey.
+          const path = v.path ?? (() => {
+            try {
+              return decKey(c.key ?? "");
+            } catch {
+              return "";
+            }
+          })();
+          if (v.uid && path) out.push({ path, uid: v.uid, email: v.email ?? "" });
         });
+        console.debug("[locks] state:", out.map((l) => `${l.path}→${l.email}`));
         cb(out);
       }),
     );

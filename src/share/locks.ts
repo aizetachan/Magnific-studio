@@ -59,7 +59,10 @@ export function useFieldLock(path: string): {
   const other = snapshot.find((l) => l.path === path && l.uid !== myUid);
   return {
     lockedBy: other ? other.email || "otro usuario" : null,
-    onFocus: () => acquireFn?.(path),
+    onFocus: () => {
+      if (other) return; // never contest a foreign lock
+      acquireFn?.(path);
+    },
     onBlur: () => releaseFn?.(path),
   };
 }
