@@ -41,15 +41,27 @@ export function firestore(): Firestore {
   return getFirestore(app());
 }
 
-/** Current signed-in user (uid/email) or null. */
+/** Current signed-in user (uid/email) or null. Never throws (dev mode has
+ * no Firebase config, and getAuth would explode with auth/invalid-api-key). */
 export function me(): { uid: string; email: string } | null {
-  const u = getAuth(app()).currentUser;
-  return u ? { uid: u.uid, email: u.email ?? "" } : null;
+  if (!shareEnabled) return null;
+  try {
+    const u = getAuth(app()).currentUser;
+    return u ? { uid: u.uid, email: u.email ?? "" } : null;
+  } catch {
+    return null;
+  }
 }
 
 /** Full profile for presence (display name + Google avatar). */
 export function meProfile(): { uid: string; email: string; name?: string; photo?: string } | null {
-  const u = getAuth(app()).currentUser;
+  if (!shareEnabled) return null;
+  let u;
+  try {
+    u = getAuth(app()).currentUser;
+  } catch {
+    return null;
+  }
   if (!u) return null;
   return {
     uid: u.uid,

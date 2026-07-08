@@ -53,6 +53,7 @@ function sanitize(p: Project): Project {
   // Swap volatile blob: object URLs for stable local:assets/<file> refs.
   dehydrateAssetRefs(safe);
   safe.settings.anthropicApiKey = "";
+  safe.settings.openaiApiKey = "";
   safe.settings.magnificApiKey = "";
   for (const s of safe.shots) {
     s.keyframeJob = settledOnly(s.keyframeJob);

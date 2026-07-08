@@ -1,6 +1,7 @@
 import type { StoreValue } from "@/state/ProjectStore";
 import type { PageContext } from "@/types/pipeline";
 import { AnthropicClient, type ClaudeMessage } from "./AnthropicClient";
+import { OpenAIClient } from "./OpenAIClient";
 
 /**
  * Ask Claude (the brain) within the active page scope and meter the usage.
@@ -14,10 +15,11 @@ export async function askClaude(
   maxTokens = 1024,
   extraSystem = "",
 ): Promise<string> {
-  const client = new AnthropicClient(
-    api.project.settings.anthropicApiKey,
-    api.project.settings.directorModel,
-  );
+  const s = api.project.settings;
+  const client =
+    s.directorProvider === "openai"
+      ? new OpenAIClient(s.openaiApiKey ?? "", s.openaiModel ?? "gpt-5")
+      : new AnthropicClient(s.anthropicApiKey, s.directorModel);
   const reply = await client.send(ctx, history, offlineReply, maxTokens, extraSystem);
   api.meter({
     phase: ctx.phase,

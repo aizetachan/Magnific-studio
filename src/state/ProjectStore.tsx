@@ -43,6 +43,9 @@ function applyCreds(p: Project): Project {
   p.settings.anthropicApiKey = c.anthropicApiKey;
   p.settings.directorModel = c.directorModel;
   p.settings.connectionTested = c.connectionTested;
+  p.settings.directorProvider = c.provider;
+  p.settings.openaiApiKey = c.openaiApiKey;
+  p.settings.openaiModel = c.openaiModel;
   return p;
 }
 
@@ -128,13 +131,19 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
           if (
             prev.settings.anthropicApiKey === c.anthropicApiKey &&
             prev.settings.directorModel === c.directorModel &&
-            prev.settings.connectionTested === c.connectionTested
+            prev.settings.connectionTested === c.connectionTested &&
+            prev.settings.directorProvider === c.provider &&
+            prev.settings.openaiApiKey === c.openaiApiKey &&
+            prev.settings.openaiModel === c.openaiModel
           )
             return prev;
           const next = structuredClone(prev) as Project;
           next.settings.anthropicApiKey = c.anthropicApiKey;
           next.settings.directorModel = c.directorModel;
           next.settings.connectionTested = c.connectionTested;
+          next.settings.directorProvider = c.provider;
+          next.settings.openaiApiKey = c.openaiApiKey;
+          next.settings.openaiModel = c.openaiModel;
           return next;
         });
       }),
@@ -230,6 +239,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     const safe = structuredClone(project) as Project;
     safe.settings.anthropicApiKey = "";
     safe.settings.magnificApiKey = "";
+    safe.settings.openaiApiKey = "";
     // Counts as "took a copy" for the unsaved-changes guard (fallback mode).
     window.dispatchEvent(new Event("ms:exported"));
     return JSON.stringify(safe, null, 2);

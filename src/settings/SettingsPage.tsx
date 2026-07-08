@@ -9,7 +9,6 @@ import {
   IconCreditCard,
   IconLock,
   IconShieldLock,
-  IconSparkles,
   IconUser,
   IconUsers,
   IconX,
@@ -18,6 +17,12 @@ import {
 import { useStore } from "@/state/ProjectStore";
 import { useCredentials, setCredentials } from "@/state/credentials";
 import { AnthropicClient } from "@/director/AnthropicClient";
+import { OpenAIClient, OPENAI_MODELS } from "@/director/OpenAIClient";
+import { authEnabled, watchAuth } from "@/auth/firebase";
+import type { User } from "firebase/auth";
+import { useMyCollaborators, useMyPendingKnocks } from "@/share/useKnocks";
+import { KnockRow } from "@/share/ShareControls";
+import { loadProject } from "@/state/persistence";
 import { config } from "@/config";
 import { consumeSettingsTarget } from "@/components/AppAlert";
 import { setLang, useI18n, type TKey } from "@/i18n";
@@ -38,12 +43,14 @@ type Sec =
 
 const NAV: { group: TKey; items: { id: Sec; label: string; labelKey?: TKey; icon: ComponentType<IconProps>; mock?: boolean }[] }[] = [
   { group: "settings.group.account", items: [
-    { id: "perfil", label: "Perfil", labelKey: "settings.nav.profile", icon: IconUser, mock: true },
+    { id: "perfil", label: "Perfil", labelKey: "settings.nav.profile", icon: IconUser },
     { id: "prefs", label: "Preferencias", labelKey: "settings.nav.prefs", icon: IconAdjustmentsHorizontal },
     { id: "seguridad", label: "Seguridad", labelKey: "settings.nav.security", icon: IconLock, mock: true },
+    { id: "people", label: "Collaborators", labelKey: "settings.nav.collaborators", icon: IconUsers },
+    { id: "billing", label: "Plan & billing", icon: IconCreditCard, mock: true },
   ]},
   { group: "settings.group.connections", items: [
-    { id: "claude", label: "Claude (API)", labelKey: "settings.nav.claude", icon: IconSparkles },
+    { id: "claude", label: "API Keys", labelKey: "settings.nav.claude", icon: IconCode },
     { id: "magnific", label: "Magnific (MCP)", labelKey: "settings.nav.magnific", icon: IconBolt },
   ]},
   { group: "settings.group.usage", items: [
@@ -51,12 +58,25 @@ const NAV: { group: TKey; items: { id: Sec; label: string; labelKey?: TKey; icon
   ]},
   { group: "settings.group.org", items: [
     { id: "team", label: "My Team", icon: IconBuildingSkyscraper, mock: true },
-    { id: "people", label: "People", icon: IconUsers, mock: true },
-    { id: "apikeys", label: "API Keys", icon: IconCode, mock: true },
     { id: "sso", label: "Security SSO", icon: IconShieldLock, mock: true },
-    { id: "billing", label: "Plan & billing", icon: IconCreditCard, mock: true },
   ]},
 ];
+/** Compact brand logomarks for the provider switch. */
+function ClaudeLogo() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+      <path d="M12 2l1.7 6.1L19 5.2l-3.4 5.1L21.5 12l-5.9 1.7L19 18.8l-5.3-2.9L12 22l-1.7-6.1L5 18.8l3.4-5.1L2.5 12l5.9-1.7L5 5.2l5.3 2.9L12 2z" />
+    </svg>
+  );
+}
+function OpenAILogo() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+      <path d="M22.28 9.82a5.98 5.98 0 0 0-.52-4.91 6.05 6.05 0 0 0-6.51-2.9A6.07 6.07 0 0 0 4.98 4.18a5.98 5.98 0 0 0-4 2.9 6.05 6.05 0 0 0 .75 7.1 5.98 5.98 0 0 0 .51 4.91 6.05 6.05 0 0 0 6.51 2.9A5.98 5.98 0 0 0 13.26 24a6.06 6.06 0 0 0 5.77-4.21 5.99 5.99 0 0 0 4-2.9 6.06 6.06 0 0 0-.75-7.07zm-9.02 12.61a4.48 4.48 0 0 1-2.88-1.04l.14-.08 4.78-2.76a.79.79 0 0 0 .39-.68v-6.74l2.02 1.17a.07.07 0 0 1 .04.05v5.58a4.5 4.5 0 0 1-4.49 4.5zm-9.66-4.13a4.47 4.47 0 0 1-.54-3.01l.14.09 4.78 2.76a.77.77 0 0 0 .78 0l5.84-3.37v2.33a.08.08 0 0 1-.03.06L9.74 19.95a4.5 4.5 0 0 1-6.14-1.65zM2.34 7.9a4.48 4.48 0 0 1 2.37-1.97v5.68a.77.77 0 0 0 .39.68l5.81 3.35-2.02 1.17a.08.08 0 0 1-.07 0L4 14.02a4.5 4.5 0 0 1-1.66-6.13zm16.6 3.86l-5.83-3.39 2.01-1.16a.08.08 0 0 1 .07 0l4.83 2.79a4.49 4.49 0 0 1-.68 8.1v-5.68a.79.79 0 0 0-.4-.66zm2.01-3.02l-.14-.09-4.77-2.79a.78.78 0 0 0-.79 0L9.41 9.23V6.9a.07.07 0 0 1 .03-.06l4.83-2.79a4.5 4.5 0 0 1 6.68 4.66zm-12.64 4.14l-2.02-1.16a.08.08 0 0 1-.04-.06V6.08a4.5 4.5 0 0 1 7.38-3.45l-.14.08L8.7 5.47a.79.79 0 0 0-.39.68zm1.1-2.37l2.6-1.5 2.6 1.5v3l-2.6 1.5-2.6-1.5z" />
+    </svg>
+  );
+}
+
 const SEC_LABEL: Record<Sec, string> = Object.fromEntries(
   NAV.flatMap((g) => g.items.map((i) => [i.id, i.label])),
 ) as Record<Sec, string>;
@@ -86,8 +106,33 @@ export function SettingsPage() {
     window.addEventListener("ms:open-settings", go);
     return () => window.removeEventListener("ms:open-settings", go);
   }, []);
-  // Mock profile fields (visual only, not persisted).
-  const [profile, setProfile] = useState({ name: "", username: "", email: "" });
+  // Profile: real data from the signed-in Google account; the username is
+  // user-editable and remembered in this browser (defaults to the name).
+  const [gUser, setGUser] = useState<User | null>(null);
+  useEffect(() => (authEnabled ? watchAuth(setGUser) : undefined), []);
+  const USERNAME_KEY = "magnific-studio:username";
+  const [username, setUsername] = useState(() => {
+    try {
+      return localStorage.getItem(USERNAME_KEY) ?? "";
+    } catch {
+      return "";
+    }
+  });
+  useEffect(() => {
+    if (gUser && !username) setUsername(gUser.displayName ?? "");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gUser]);
+  const saveUsername = (v: string) => {
+    setUsername(v);
+    try {
+      localStorage.setItem(USERNAME_KEY, v);
+    } catch {
+      /* ignore */
+    }
+  };
+  // Collaborators management (pending + with access).
+  const pendingKnocks = useMyPendingKnocks();
+  const collaborators = useMyCollaborators();
 
   const testConnection = async () => {
     setTesting(true);
@@ -120,6 +165,34 @@ export function SettingsPage() {
     }
   };
 
+  const testOpenAI = async () => {
+    setTesting(true);
+    setConnError(null);
+    try {
+      const client = new OpenAIClient(creds.openaiApiKey, creds.openaiModel);
+      if (!client.hasKey) {
+        setConnError("Falta la API key.");
+        setCredentials({ openaiTested: "failed" });
+        return;
+      }
+      await client.send(
+        { phase: "story", phaseLabel: "Test", visibleObjects: {}, allowedActions: [], blockedActions: [], implicitReferent: "test" },
+        [{ role: "user", content: "ping" }],
+        () => "pong",
+        16,
+      );
+      setCredentials({ openaiTested: "ok" });
+    } catch (e) {
+      setConnError(e instanceof Error ? e.message : String(e));
+      setCredentials({ openaiTested: "failed" });
+    } finally {
+      setTesting(false);
+    }
+  };
+
+  const provider = creds.provider;
+  const provTested = provider === "openai" ? creds.openaiTested : creds.connectionTested;
+
 
   return (
     <div className="settings">
@@ -133,12 +206,13 @@ export function SettingsPage() {
                 return (
                   <button
                     key={it.id}
-                    className={`settings__navitem ${section === it.id ? "is-on" : ""}`}
+                    className={`settings__navitem ${section === it.id ? "is-on" : ""} ${it.mock ? "settings__navitem--soon" : ""}`}
+                    disabled={it.mock}
                     onClick={() => setSection(it.id)}
                   >
                     <Icon size={16} />
                     <span>{it.labelKey ? tr(it.labelKey) : it.label}</span>
-                    {it.mock ? <span className="settings__soon">pronto</span> : null}
+                    {it.mock ? <span className="home__soon">{tr("common.soon")}</span> : null}
                   </button>
                 );
               })}
@@ -168,20 +242,47 @@ export function SettingsPage() {
           {/* ---------- Conexiones · Claude (real) ---------- */}
           {section === "claude" ? (
             <div className="card">
+              {/* Provider switch: which API drives the Director. */}
+              <div className="apiprov">
+                <button
+                  className={`apiprov__btn ${provider === "anthropic" ? "apiprov__btn--on" : ""}`}
+                  onClick={() => setCredentials({ provider: "anthropic" })}
+                >
+                  <ClaudeLogo /> Claude
+                </button>
+                <button
+                  className={`apiprov__btn ${provider === "openai" ? "apiprov__btn--on" : ""}`}
+                  onClick={() => setCredentials({ provider: "openai" })}
+                >
+                  <OpenAILogo /> OpenAI
+                </button>
+              </div>
+
               <label className="card__label">{tr("settings.apiKeyLabel")}</label>
-              <input
-                type="password"
-                placeholder="sk-ant-..."
-                value={creds.anthropicApiKey}
-                onChange={(e) =>
-                  setCredentials({ anthropicApiKey: e.target.value, connectionTested: "untested" })
-                }
-              />
+              {provider === "anthropic" ? (
+                <input
+                  type="password"
+                  placeholder="sk-ant-..."
+                  value={creds.anthropicApiKey}
+                  onChange={(e) =>
+                    setCredentials({ anthropicApiKey: e.target.value, connectionTested: "untested" })
+                  }
+                />
+              ) : (
+                <input
+                  type="password"
+                  placeholder="sk-..."
+                  value={creds.openaiApiKey}
+                  onChange={(e) =>
+                    setCredentials({ openaiApiKey: e.target.value, openaiTested: "untested" })
+                  }
+                />
+              )}
               <p className="muted small">
                 {tr("settings.apiHelp")}{" "}
                 <a
                   className="settings-help-link"
-                  href="https://platform.claude.com/settings/workspaces/default/keys"
+                  href={provider === "anthropic" ? "https://platform.claude.com/settings/workspaces/default/keys" : "https://platform.openai.com/api-keys"}
                   target="_blank"
                   rel="noreferrer"
                 >
@@ -189,27 +290,38 @@ export function SettingsPage() {
                 </a>
               </p>
               <label className="card__label">{tr("settings.model")}</label>
-              <select
-                value={creds.directorModel}
-                onChange={(e) => setCredentials({ directorModel: e.target.value })}
-              >
-                {MODELS.map((m) => (
-                  <option key={m} value={m}>
-                    {m}
-                  </option>
-                ))}
-              </select>
-              <div className="conn-row">
-                <span
-                  className={`conn conn--${testing ? "untested" : creds.connectionTested}`}
+              {provider === "anthropic" ? (
+                <select
+                  value={creds.directorModel}
+                  onChange={(e) => setCredentials({ directorModel: e.target.value })}
                 >
+                  {MODELS.map((m) => (
+                    <option key={m} value={m}>
+                      {m}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <select
+                  value={creds.openaiModel}
+                  onChange={(e) => setCredentials({ openaiModel: e.target.value, openaiTested: "untested" })}
+                >
+                  {OPENAI_MODELS.map((m) => (
+                    <option key={m} value={m}>
+                      {m}
+                    </option>
+                  ))}
+                </select>
+              )}
+              <div className="conn-row">
+                <span className={`conn conn--${testing ? "untested" : provTested}`}>
                   {testing ? (
                     tr("settings.testing")
-                  ) : creds.connectionTested === "ok" ? (
+                  ) : provTested === "ok" ? (
                     <>
                       <IconCheck size={14} /> {tr("settings.connected")}
                     </>
-                  ) : creds.connectionTested === "failed" ? (
+                  ) : provTested === "failed" ? (
                     <>
                       <IconX size={14} /> {tr("settings.noConn")}
                     </>
@@ -217,16 +329,33 @@ export function SettingsPage() {
                     tr("settings.untested")
                   )}
                 </span>
-                <button className="action action--gen" disabled={testing} onClick={testConnection}>
-                  {testing ? tr("settings.testing") : tr("settings.testConn")}
-                </button>
+                {provTested === "ok" && !testing ? (
+                  <button
+                    className="action action--muted"
+                    onClick={() =>
+                      provider === "openai"
+                        ? setCredentials({ openaiApiKey: "", openaiTested: "untested" })
+                        : setCredentials({ anthropicApiKey: "", connectionTested: "untested" })
+                    }
+                  >
+                    {tr("settings.disconnectApi")}
+                  </button>
+                ) : (
+                  <button
+                    className="action action--primary"
+                    disabled={testing}
+                    onClick={provider === "openai" ? testOpenAI : testConnection}
+                  >
+                    {testing ? tr("settings.testing") : tr("settings.testConn")}
+                  </button>
+                )}
               </div>
-              {connError && creds.connectionTested === "failed" ? (
+              {connError && provTested === "failed" ? (
                 <p className="muted small" style={{ color: "var(--err, #d05656)" }}>
-                  {connError.includes("401") || /x-api-key/i.test(connError)
-                    ? "La API key no es válida. Revísala (sin espacios) en console.anthropic.com."
+                  {connError.includes("401") || /x-api-key|invalid_api_key/i.test(connError)
+                    ? "La API key no es válida. Revísala (sin espacios)."
                     : /404|not_found|model/i.test(connError)
-                      ? `El modelo "${creds.directorModel}" no está disponible en tu cuenta. Prueba otro modelo.`
+                      ? "El modelo seleccionado no está disponible en tu cuenta. Prueba otro modelo."
                       : connError}
                 </p>
               ) : null}
@@ -346,36 +475,64 @@ export function SettingsPage() {
           {section === "perfil" ? (
             <div className="card">
               <div className="settings__avatar-row">
-                <div className="settings__avatar">
-                  {(profile.name || "S").trim().charAt(0).toUpperCase()}
-                </div>
-                <button className="mini" disabled>
-                  Cambiar avatar
-                </button>
+                {gUser?.photoURL ? (
+                  <img className="settings__avatar settings__avatar--img" src={gUser.photoURL} alt="" referrerPolicy="no-referrer" />
+                ) : (
+                  <div className="settings__avatar">
+                    {(gUser?.displayName || username || "?").trim().charAt(0).toUpperCase()}
+                  </div>
+                )}
+                <span className="muted small">Avatar de tu cuenta de Google.</span>
               </div>
               <label className="card__label">Nombre</label>
-              <input
-                placeholder="Santi"
-                value={profile.name}
-                onChange={(e) => setProfile((p) => ({ ...p, name: e.target.value }))}
-              />
+              <input value={gUser?.displayName ?? ""} readOnly disabled placeholder="—" />
               <label className="card__label">Username</label>
               <input
-                placeholder="santi"
-                value={profile.username}
-                onChange={(e) =>
-                  setProfile((p) => ({ ...p, username: e.target.value }))
-                }
+                placeholder="tu-nombre"
+                value={username}
+                onChange={(e) => saveUsername(e.target.value)}
               />
               <label className="card__label">Email</label>
-              <input
-                placeholder="santi@example.com"
-                value={profile.email}
-                onChange={(e) => setProfile((p) => ({ ...p, email: e.target.value }))}
-              />
-              <p className="muted small">
-                Perfil de demostración — todavía no se persiste.
-              </p>
+              <input value={gUser?.email ?? ""} readOnly disabled placeholder="—" />
+            </div>
+          ) : null}
+
+          {/* ---------- Cuenta · Colaboradores (real) ---------- */}
+          {section === "people" ? (
+            <div className="card">
+              {pendingKnocks.length > 0 ? (
+                <div className="share-modal__section">
+                  <label className="card__label">{tr("share.pending")}</label>
+                  {pendingKnocks.map((k) => (
+                    <KnockRow key={k.id} k={k} roomId={loadProject(k.projectId)?.share?.roomId} showProject />
+                  ))}
+                </div>
+              ) : null}
+              {collaborators.length > 0 ? (
+                <div className="share-modal__section">
+                  <label className="card__label">{tr("collab.access")}</label>
+                  {collaborators.map((c) => (
+                    <div className="knock" key={c.key}>
+                      {c.photo ? (
+                        <img className="knock__avatar" src={c.photo} alt="" referrerPolicy="no-referrer" />
+                      ) : (
+                        <span className="knock__avatar knock__avatar--initial">
+                          {(c.name || c.email).slice(0, 1).toUpperCase()}
+                        </span>
+                      )}
+                      <div className="knock__who">
+                        <strong>{c.name || c.email}</strong>
+                        <span className="muted small">
+                          {c.email} · {tr("collab.accessTo")} <b>«{c.projectName}»</b>
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+              {pendingKnocks.length === 0 && collaborators.length === 0 ? (
+                <p className="muted">{tr("collab.empty")}</p>
+              ) : null}
             </div>
           ) : null}
 
@@ -505,12 +662,12 @@ function MagnificAuth() {
       </div>
       <div className="kf__row" style={{ marginTop: 8 }}>
         {connected ? (
-          <button className="mini" onClick={logout}>
+          <button className="action action--muted" onClick={logout}>
             Desconectar
           </button>
         ) : (
           <button
-            className="gate"
+            className="action action--primary"
             style={{ height: 36 }}
             disabled={connecting}
             onClick={() => {

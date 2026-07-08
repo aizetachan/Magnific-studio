@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import {
   IconCheck,
+  IconUpload,
   IconRefresh,
   IconTrash,
   IconDownload,
@@ -12,6 +13,7 @@ import { AssetModal, type PreviewAsset } from "@/components/AssetModal";
 import { useModels } from "@/generation/models";
 import { config } from "@/config";
 import { uid } from "@/state/seed";
+import { storeAssetBlob } from "@/state/assets";
 import { generateAssetSheet } from "../runner";
 import type { Job } from "@/types/project";
 import { showAppAlert } from "@/components/AppAlert";
@@ -53,6 +55,87 @@ function jobAt(status: Job["status"], patch: Partial<Job> = {}): Job {
 export function LibraryPage({ focusAssetId }: { focusAssetId?: string | null }) {
   const store = useStore();
   const { project, update, generation } = store;
+
+  // Upload your own image as the asset's reference (top button on each card).
+  const uploadInputRef = useRef<HTMLInputElement>(null);
+  const [uploadFor, setUploadFor] = useState<string | null>(null);
+  const [uploading, setUploading] = useState<string | null>(null);
+  const [uploadNote, setUploadNote] = useState<Record<string, string>>({});
+
+  const pickImage = (assetId: string) => {
+    setUploadFor(assetId);
+    uploadInputRef.current?.click();
+  };
+
+  const onUploadFile = async (file: File | null) => {
+    const assetId = uploadFor;
+    setUploadFor(null);
+    if (!file || !assetId) return;
+    const asset = project.library?.find((x) => x.id === assetId);
+    if (!asset) return;
+    setUploading(assetId);
+    setUploadNote((n) => ({ ...n, [assetId]: "" }));
+    try {
+      // 1. Always keep the image locally (cover + reference set).
+      const localUrl = await storeAssetBlob(`ref_${assetId}_${Date.now()}`, file, ".png");
+      update((d) => {
+        const a = d.library?.find((x) => x.id === assetId);
+        if (!a) return;
+        a.thumbnailUrl = localUrl;
+        a.images = [localUrl];
+      });
+      // 2. Characters/environments: register in the Magnific Library so the
+      //    image drives generation consistency. Styles stay local-only (the
+      //    global style is applied as prompt text).
+      if (asset.type === "style") return;
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const r = new FileReader();
+        r.onload = () => resolve(String(r.result).split(",")[1] ?? "");
+        r.onerror = () => reject(new Error("No se pudo leer el archivo"));
+        r.readAsDataURL(file);
+      });
+      const mime = ["image/jpeg", "image/png", "image/webp"].includes(file.type) ? file.type : "image/png";
+      const up = await fetch(`${config.directorBase}/upload-creation`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ base64, mime }),
+      });
+      const upData = (await up.json()) as { ok: boolean; identifier?: string; needsMagnific?: boolean; error?: string };
+      if (!upData.ok || !upData.identifier) {
+        if (upData.needsMagnific) {
+          setUploadNote((n) => ({ ...n, [assetId]: "Imagen guardada en local. Conecta Magnific en Ajustes para usarla como referencia en generaciones." }));
+          return;
+        }
+        throw new Error(upData.error || "No se pudo subir la imagen");
+      }
+      update((d) => {
+        const a = d.library?.find((x) => x.id === assetId);
+        if (a) a.creationIds = [upData.identifier!];
+      });
+      const lib = await fetch(`${config.directorBase}/library-create`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          name: asset.name,
+          type: asset.type === "location" ? "locations" : "character",
+          description: asset.description || undefined,
+          images: [{ creationIdentifier: upData.identifier }],
+        }),
+      });
+      const libData = (await lib.json()) as { ok: boolean; identifier?: string; error?: string };
+      if (!libData.ok || !libData.identifier) throw new Error(libData.error || "No se pudo crear la entrada de biblioteca");
+      update((d) => {
+        const a = d.library?.find((x) => x.id === assetId);
+        if (a) a.magnificIdentifier = String(libData.identifier);
+      });
+    } catch (e) {
+      setUploadNote((n) => ({ ...n, [assetId]: e instanceof Error ? e.message : String(e) }));
+    } finally {
+      setUploading(null);
+    }
+  };
   const [tab, setTab] = useState<Tab>("character");
   const [highlight, setHighlight] = useState<string | null>(null);
   const [preview, setPreview] = useState<PreviewAsset | null>(null);
@@ -234,6 +317,13 @@ export function LibraryPage({ focusAssetId }: { focusAssetId?: string | null }) 
 
   return (
     <div className="page">
+      <input
+        ref={uploadInputRef}
+        type="file"
+        accept="image/png,image/jpeg,image/webp"
+        style={{ display: "none" }}
+        onChange={(e) => { void onUploadFile(e.target.files?.[0] ?? null); e.target.value = ""; }}
+      />
       <div className="tabs">
         {(Object.keys(TAB_LABEL) as Tab[]).map((t) => (
           <button
@@ -332,6 +422,14 @@ export function LibraryPage({ focusAssetId }: { focusAssetId?: string | null }) 
                     ref={highlight === a.id ? focusRef : undefined}
                   >
                     <div className="asset-card__thumb">
+                      <button
+                        className="asset-card__upload"
+                        title="Cargar imagen propia"
+                        disabled={uploading === a.id}
+                        onClick={() => pickImage(a.id)}
+                      >
+                        <IconUpload size={14} /> {uploading === a.id ? "Subiendo…" : "Cargar imagen"}
+                      </button>
                       {a.thumbnailUrl ? (
                         <img className="asset-clickable" src={a.thumbnailUrl} alt={a.name} onClick={() => setPreview({ url: a.thumbnailUrl!, kind: "image" })} />
                       ) : (
@@ -344,6 +442,7 @@ export function LibraryPage({ focusAssetId }: { focusAssetId?: string | null }) 
                       ) : null}
                     </div>
                     <input className="asset-card__name" value={a.name} onChange={(e) => rename(a.id, e.target.value)} />
+                    {uploadNote[a.id] ? <p className="muted small asset-card__note">{uploadNote[a.id]}</p> : null}
                     {isStyle ? (
                       <textarea
                         className="kf__prompt"

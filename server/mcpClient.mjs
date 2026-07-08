@@ -284,6 +284,38 @@ export async function createLibraryAsset(mcpUrl, token, { name, type, descriptio
   return { identifier: identifier ?? numericId, id: numericId, raw: textOf(res) };
 }
 
+/**
+ * Upload raw image bytes as a Magnific creation (request_upload → PUT →
+ * finalize). Returns the creation identifier to use in library refs.
+ */
+export async function uploadCreationBytes(mcpUrl, token, { buffer, mime }) {
+  const req = await callTool(mcpUrl, token, "creations_request_upload", { mimeType: mime });
+  let uploadUrl;
+  let path;
+  for (const obj of objectsFrom(req)) {
+    const urls = collectByKey(obj, ["uploadUrl", "upload_url", "url", "putUrl", "signedUrl"], []);
+    if (!uploadUrl) uploadUrl = urls.find((u) => /^https?:\/\//.test(String(u)));
+    const paths = collectByKey(obj, ["path", "uploadPath", "key"], []);
+    if (!path && paths.length) path = paths[0];
+  }
+  if (!uploadUrl || !path) throw new Error("Magnific no devolvió la URL de subida");
+  const put = await fetch(uploadUrl, {
+    method: "PUT",
+    headers: { "content-type": mime },
+    body: buffer,
+  });
+  if (!put.ok) throw new Error(`Subida a Magnific fallida (HTTP ${put.status})`);
+  const fin = await callTool(mcpUrl, token, "creations_finalize_upload", { path });
+  const ids = extractIdentifiers(fin);
+  let identifier = ids[0];
+  for (const obj of objectsFrom(fin)) {
+    const found = collectByKey(obj, ["identifier", "creationIdentifier"], []);
+    if (found.length) identifier = found[0];
+  }
+  if (!identifier) throw new Error("Magnific no registró la imagen subida");
+  return String(identifier);
+}
+
 /** TTS voices catalog → [{ id, name, gender, language }] (tolerant TOON/JSON parse). */
 export async function listVoices(mcpUrl, token, search) {
   const res = await callTool(mcpUrl, token, "audio_voices_list", search ? { search } : {});

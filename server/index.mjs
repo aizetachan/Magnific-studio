@@ -43,6 +43,7 @@ import {
   accountBalance,
   callTool,
   createLibraryAsset,
+  uploadCreationBytes,
   creationAssetUrl,
   creationAssetUrlWait,
   creationInfo,
@@ -1259,6 +1260,30 @@ async function handle(req, res) {
       return json(res, 200, { ok: true, assets: await listLibrary(MCP_URL, token, { type, search }) });
     } catch (e) {
       return json(res, 200, { ok: false, assets: [], error: e instanceof Error ? e.message : String(e) });
+    }
+  }
+
+  // Upload a user image as a Magnific creation (for library references).
+  // Body: { base64, mime }. Returns { ok, identifier }.
+  if (req.method === "POST" && path === "/api/director/upload-creation") {
+    try {
+      const body = await readBody(req);
+      const sid = sidOf(req);
+      const token = MCP_URL ? await tokenFor(sid).catch(() => undefined) : undefined;
+      if (!token) {
+        return json(res, 200, { ok: false, needsMagnific: true, error: "Conecta tu cuenta de Magnific (OAuth) en Ajustes" });
+      }
+      const mime = String(body.mime ?? "image/png");
+      if (!["image/jpeg", "image/png", "image/webp"].includes(mime)) {
+        return json(res, 200, { ok: false, error: "Formato no soportado (JPEG, PNG o WebP)" });
+      }
+      const buffer = Buffer.from(String(body.base64 ?? ""), "base64");
+      if (buffer.length === 0) return json(res, 200, { ok: false, error: "base64 required" });
+      if (buffer.length > 25 * 1024 * 1024) return json(res, 200, { ok: false, error: "Imagen demasiado grande (máx 25MB)" });
+      const identifier = await uploadCreationBytes(MCP_URL, token, { buffer, mime });
+      return json(res, 200, { ok: true, identifier });
+    } catch (e) {
+      return json(res, 200, { ok: false, error: e instanceof Error ? e.message : String(e) });
     }
   }
 
