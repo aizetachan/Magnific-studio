@@ -21,12 +21,14 @@ export function bindLocks(
   acquire: (path: string) => void,
   release: (path: string) => void,
 ): void {
+  console.log("[locks] BIND for", uid);
   myUid = uid;
   acquireFn = acquire;
   releaseFn = release;
 }
 
 export function unbindLocks(): void {
+  console.log("[locks] UNBIND");
   myUid = "";
   acquireFn = releaseFn = null;
   setLocks([]);
@@ -61,6 +63,7 @@ export function useFieldLock(path: string): {
     lockedBy: other ? other.email || "otro usuario" : null,
     onFocus: () => {
       if (other) return; // never contest a foreign lock
+      if (!acquireFn) console.log("[locks] focus but NOT BOUND:", path);
       acquireFn?.(path);
     },
     onBlur: () => releaseFn?.(path),

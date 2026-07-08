@@ -287,7 +287,7 @@ export class ShareRoom {
           })();
           if (v.uid && path) out.push({ path, uid: v.uid, email: v.email ?? "" });
         });
-        console.debug("[locks] state:", out.map((l) => `${l.path}→${l.email}`));
+        console.log("[locks] state:", out.map((l) => `${l.path}→${l.email}`));
         cb(out);
       }),
     );
