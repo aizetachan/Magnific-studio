@@ -125,6 +125,13 @@ export function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Auto-enter the studio (accepted invite / approved join link).
+  useEffect(() => {
+    const enter = () => setView("studio");
+    window.addEventListener("ms:enter-studio", enter);
+    return () => window.removeEventListener("ms:enter-studio", enter);
+  }, []);
+
   // "Ir a Ajustes" from anywhere (e.g. the connect-API modal): switch to Home,
   // where HomeShell/SettingsPage pick up the pending target section.
   useEffect(() => {

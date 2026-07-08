@@ -30,6 +30,7 @@ export function ShareInbox() {
     saveProject(stub);
     setInvites((xs) => xs.filter((x) => x.id !== inv.id));
     switchProject(inv.projectId);
+    window.dispatchEvent(new Event("ms:enter-studio"));
   };
 
   return (

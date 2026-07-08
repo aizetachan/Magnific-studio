@@ -13,6 +13,7 @@ import {
   type ShareLink,
 } from "./links";
 import { useI18n } from "@/i18n";
+import { watchAuth } from "@/auth/firebase";
 
 /**
  * Handles ?join=<token> — the copy-link entry point.
@@ -21,13 +22,33 @@ import { useI18n } from "@/i18n";
  * key only arrives inside the approved knock).
  */
 
+const PENDING_JOIN = "magnific-studio:pending-join";
+
+// Pin the token the moment this module loads, BEFORE any login redirect or
+// URL normalization can touch the query string.
+try {
+  const early = new URL(window.location.href).searchParams.get("join");
+  if (early) sessionStorage.setItem(PENDING_JOIN, early);
+} catch {
+  /* ignore */
+}
+
 function consumeJoinToken(): string | null {
   try {
-    const url = new URL(window.location.href);
-    const token = url.searchParams.get("join");
-    return token;
+    return (
+      new URL(window.location.href).searchParams.get("join") ??
+      sessionStorage.getItem(PENDING_JOIN)
+    );
   } catch {
     return null;
+  }
+}
+
+function forgetJoinToken(): void {
+  try {
+    sessionStorage.removeItem(PENDING_JOIN);
+  } catch {
+    /* ignore */
   }
 }
 
@@ -46,12 +67,17 @@ type Phase =
   | { kind: "waiting"; link: ShareLink }
   | { kind: "rejected"; link: ShareLink }
   | { kind: "expired" }
-  | { kind: "invalid" };
+  | { kind: "invalid" }
+  | { kind: "error"; detail: string };
 
 export function JoinGate() {
   const { switchProject } = useStore();
   const [phase, setPhase] = useState<Phase>({ kind: "idle" });
   const { t } = useI18n();
+
+  // Re-check when auth resolves (the link may be opened before signing in).
+  const [authTick, setAuthTick] = useState(0);
+  useEffect(() => watchAuth(() => setAuthTick((x) => x + 1)), []);
 
   useEffect(() => {
     const token = consumeJoinToken();
@@ -68,13 +94,18 @@ export function JoinGate() {
         saveProject(stub);
       }
       clearJoinParam();
+      forgetJoinToken();
       setPhase({ kind: "idle" });
       switchProject(projectId);
+      // The dashboard hosts this gate too — jump into the studio view.
+      window.dispatchEvent(new Event("ms:enter-studio"));
     };
 
     void (async () => {
+      try {
       const link = await resolveLink(token);
       if (!link) {
+        forgetJoinToken();
         setPhase({ kind: "invalid" });
         return;
       }
@@ -86,6 +117,7 @@ export function JoinGate() {
       if (!user) return;
       if (link.ownerUid === user.uid) {
         clearJoinParam();
+        forgetJoinToken();
         return; // it's your own link
       }
       if (link.mode === "open" && link.roomId) {
@@ -104,11 +136,16 @@ export function JoinGate() {
           setPhase({ kind: "rejected", link });
         }
       });
+      } catch (e) {
+        // Surface the failure instead of dying silently (rules, network...).
+        console.error("[join] failed:", e);
+        setPhase({ kind: "error", detail: e instanceof Error ? e.message : String(e) });
+      }
     })();
 
     return () => unwatch?.();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [authTick]);
 
   if (phase.kind === "idle") return null;
 
@@ -141,7 +178,7 @@ export function JoinGate() {
               <p>{t("join.rejectedBody")}</p>
             </div>
             <div className="confirm-modal__actions">
-              <button className="action" onClick={() => { clearJoinParam(); setPhase({ kind: "idle" }); }}>
+              <button className="action" onClick={() => { clearJoinParam(); forgetJoinToken(); setPhase({ kind: "idle" }); }}>
                 {t("alert.close")}
               </button>
             </div>
@@ -154,9 +191,10 @@ export function JoinGate() {
             </h3>
             <div className="confirm-modal__msg">
               <p>{phase.kind === "expired" ? t("join.expiredBody") : t("join.invalidBody")}</p>
+              {phase.kind === "error" ? <p className="muted small">{phase.detail}</p> : null}
             </div>
             <div className="confirm-modal__actions">
-              <button className="action" onClick={() => { clearJoinParam(); setPhase({ kind: "idle" }); }}>
+              <button className="action" onClick={() => { clearJoinParam(); forgetJoinToken(); setPhase({ kind: "idle" }); }}>
                 {t("alert.close")}
               </button>
             </div>
