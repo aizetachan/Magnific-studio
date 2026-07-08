@@ -1410,3 +1410,10 @@ code { background: var(--surface-2); border: 1px solid var(--border-1); border-r
 /* Settings nav: coming-soon items are visible but not clickable. */
 .settings__navitem--soon { opacity: 0.55; cursor: default; }
 .settings__navitem--soon .home__soon { margin-left: auto; }
+
+/* Solid gray secondary button (visibly a button, not ghost text). */
+.action--muted {
+  background: var(--ghost-2, #2a2d34); border: 1px solid var(--border-2);
+  color: var(--fg-1, #ddd);
+}
+.action--muted:hover:not(:disabled) { background: var(--surface-3); }

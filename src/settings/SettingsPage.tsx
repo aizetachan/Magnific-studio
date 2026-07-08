@@ -331,7 +331,7 @@ export function SettingsPage() {
                 </span>
                 {provTested === "ok" && !testing ? (
                   <button
-                    className="action"
+                    className="action action--muted"
                     onClick={() =>
                       provider === "openai"
                         ? setCredentials({ openaiApiKey: "", openaiTested: "untested" })
@@ -662,12 +662,12 @@ function MagnificAuth() {
       </div>
       <div className="kf__row" style={{ marginTop: 8 }}>
         {connected ? (
-          <button className="action" onClick={logout}>
+          <button className="action action--muted" onClick={logout}>
             Desconectar
           </button>
         ) : (
           <button
-            className="gate"
+            className="action action--primary"
             style={{ height: 36 }}
             disabled={connecting}
             onClick={() => {
