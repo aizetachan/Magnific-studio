@@ -1296,7 +1296,9 @@ code { background: var(--surface-2); border: 1px solid var(--border-1); border-r
   .home__recents {
     display: flex; overflow-x: auto; gap: 12px;
     margin: 0 -16px; padding: 0 16px 6px;
-    scroll-snap-type: x mandatory;
+    /* Snap respects the 16px gutter: the active card rests aligned with the
+       heading, while scrolled cards run off the physical screen edge. */
+    scroll-snap-type: x mandatory; scroll-padding: 0 16px;
   }
   .home__recents .pcard { flex: 0 0 72%; scroll-snap-align: start; }
 
