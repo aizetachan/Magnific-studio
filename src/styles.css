@@ -949,15 +949,26 @@ code { background: var(--surface-2); border: 1px solid var(--border-1); border-r
 /* --- Auth gate (Google login, prod only) --- */
 .auth-gate {
   display: flex; align-items: center; justify-content: center;
-  height: 100%; background: var(--panel-0);
+  height: 100%;
+  background: var(--panel-0) url("/bg-login.jpg") center / cover no-repeat;
 }
 .auth-gate__card {
   display: flex; flex-direction: column; align-items: center; gap: 14px;
-  max-width: 380px; padding: 40px 36px; text-align: center;
-  background: var(--panel-2); border-radius: var(--radius-2xl);
+  max-width: 400px; padding: 40px 36px; text-align: center;
+  background: #101010cc; border: 1px solid var(--border-1);
+  border-radius: var(--radius-2xl);
+  backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+  box-shadow: 0 24px 60px #00000066;
 }
 .auth-gate__card h1 { font-size: 22px; }
 .auth-gate__err { color: var(--err, #d05656); font-size: 12px; }
+/* Google CTA in the platform's pink (the "create" emphasis color). */
+.auth-gate__google {
+  background: linear-gradient(135deg, var(--emphasis-0), var(--emphasis-2));
+  border: none; color: #fff; font-weight: 600;
+  padding: 10px 18px;
+}
+.auth-gate__google:hover { filter: brightness(1.08); }
 
 /* --- Share (Fase 0.5): presence avatars + invite modal row --- */
 .share-presence { display: flex; align-items: center; margin-right: 4px; }

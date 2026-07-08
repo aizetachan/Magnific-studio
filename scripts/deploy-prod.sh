@@ -26,8 +26,8 @@ gcloud services enable firestore.googleapis.com firebasedatabase.googleapis.com 
 echo "== 3/7 Firestore + Realtime Database =="
 gcloud firestore databases describe --database="(default)" >/dev/null 2>&1 ||
   gcloud firestore databases create --database="(default)" --location=eur3 -q
-firebase database:instances:list --project "$PROJECT" 2>/dev/null | grep -q "$PROJECT-default-rtdb" ||
-  firebase database:instances:create "$PROJECT-default-rtdb" --location "$REGION" --project "$PROJECT"
+firebase database:instances:create "$PROJECT-default-rtdb" --location "$REGION" --project "$PROJECT" \
+  || echo "RTDB: ya existe (o creación no necesaria) — continuando"
 
 echo "== 4/7 Login con Google (Identity Toolkit) =="
 TOKEN=$(gcloud auth print-access-token)

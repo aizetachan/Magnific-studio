@@ -40,11 +40,11 @@ export function AuthGate({ children }: { children: ReactNode }) {
           <h1>Magnific Studio</h1>
           <p className="muted">
             Inicia sesión para usar el estudio. Tu contenido se guarda solo en
-            tu máquina; conectarás tu propia cuenta de Magnific y tu API key de
-            Claude en Ajustes.
+            tu máquina (para esta versión alpha); conectarás tu propia cuenta
+            de Magnific y tu API key de Claude en Ajustes.
           </p>
           <button
-            className="action action--gen"
+            className="action auth-gate__google"
             onClick={async () => {
               setError(null);
               try {
