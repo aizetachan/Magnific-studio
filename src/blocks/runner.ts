@@ -124,6 +124,12 @@ export async function runShotGeneration(
   if (isKeyframe && locAsset?.type === "location" && locAsset.magnificIdentifier) {
     libraryRefs.push({ type: "locations", identifier: locAsset.magnificIdentifier });
   }
+  // Global style: when active AND registered in the Magnific Library as a
+  // style entry, reference it so the look stays consistent across the whole
+  // production (in addition to the style TEXT injected into the prompt).
+  if (isKeyframe && styleAsset?.type === "style" && styleAsset.magnificIdentifier) {
+    libraryRefs.push({ type: "style", identifier: styleAsset.magnificIdentifier });
+  }
 
   // Video uses the storyboard keyframe as its start frame — pass the keyframe's
   // Magnific creation identifier (Magnific can't reach our local file URL).

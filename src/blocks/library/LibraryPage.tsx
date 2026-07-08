@@ -19,9 +19,10 @@ const GROUPS: Array<{ type: GroupType; label: string; singular: string }> = [
   { type: "style", label: "Estilo", singular: "Estilo" },
 ];
 
-const MCP_TYPE: Record<"character" | "location", string> = {
+const MCP_TYPE: Record<GroupType, string> = {
   character: "character",
   location: "locations",
+  style: "style",
 };
 
 export function LibraryPage({ focusAssetId }: { focusAssetId?: string | null }) {
@@ -46,7 +47,6 @@ export function LibraryPage({ focusAssetId }: { focusAssetId?: string | null }) 
   const [syncing, setSyncing] = useState(false);
 
   const sync = async (type: GroupType) => {
-    if (type === "style") return;
     setImportFor(type);
     setSyncing(true);
     setImportable(null);
@@ -115,11 +115,9 @@ export function LibraryPage({ focusAssetId }: { focusAssetId?: string | null }) 
               <strong>
                 {g.label} {assets.length ? `(${assets.length})` : ""}
               </strong>
-              {g.type !== "style" ? (
-                <button className="mini" disabled={syncing && importFor === g.type} onClick={() => void sync(g.type)}>
-                  <IconDownload size={13} /> {syncing && importFor === g.type ? "Buscando…" : "Importar de tu cuenta"}
-                </button>
-              ) : null}
+              <button className="mini" disabled={syncing && importFor === g.type} onClick={() => void sync(g.type)}>
+                <IconDownload size={13} /> {syncing && importFor === g.type ? "Buscando…" : "Importar de tu cuenta"}
+              </button>
             </div>
 
             {importFor === g.type && importable ? (
