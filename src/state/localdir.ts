@@ -323,10 +323,25 @@ async function folderFor(projectId: string): Promise<string> {
 }
 
 /**
+ * The project whose content this tab is working on. Asset paths ("assets/…")
+ * resolve INSIDE that project's folder, so everything a project generates
+ * lives together under its own named directory.
+ */
+let activeProjectId: string | null = null;
+export function setActiveProject(projectId: string): void {
+  activeProjectId = projectId;
+}
+
+/** Physical path for a project-relative content path (e.g. "assets/x.png"). */
+export async function resolveContentPath(path: string): Promise<string> {
+  if (!path.startsWith("assets/") || !activeProjectId) return path;
+  return `${await folderFor(activeProjectId)}/${path}`;
+}
+
+/**
  * Make sure the project's folder exists and matches its (sanitized) name;
- * renames the folder when the project was renamed. The folder only holds
- * project.json (assets live in the shared root assets/), so a rename is a
- * cheap move of one file. Returns the folder name to write into.
+ * renames the folder when the project was renamed, moving project.json AND
+ * the assets/ contents with it. Returns the folder name to write into.
  */
 export async function ensureProjectFolder(
   projectId: string,
@@ -341,16 +356,23 @@ export async function ensureProjectFolder(
   if (current === wanted) return wanted;
 
   if (current && current !== wanted) {
-    // Move project.json to the renamed folder; drop the old (now empty) dir.
+    // Move project.json + assets/* to the renamed folder, then drop the old
+    // directory. Copy+delete (the FS Access API has no directory rename).
     const old = await readLocalFile(`${current}/project.json`);
-    if (old) {
-      await writeLocalFile(`${wanted}/project.json`, old);
-      const at = await dirFor(`${current}/project.json`, false);
+    if (old) await writeLocalFile(`${wanted}/project.json`, old);
+    try {
+      const at = await dirFor(`${current}/assets/.probe`, false);
       if (at) {
-        await at.dir.removeEntry(at.name).catch(() => {});
-        await rootHandle?.removeEntry(current).catch(() => {}); // only if empty
+        for await (const [name, entry] of at.dir.entries()) {
+          if (entry.kind !== "file") continue;
+          const f = await readLocalFile(`${current}/assets/${name}`);
+          if (f) await writeLocalFile(`${wanted}/assets/${name}`, f);
+        }
       }
+    } catch {
+      /* no assets subfolder yet */
     }
+    await rootHandle?.removeEntry(current, { recursive: true }).catch(() => {});
   }
   idx[projectId] = wanted;
   await saveIndex();

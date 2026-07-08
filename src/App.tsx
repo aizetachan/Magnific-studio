@@ -24,6 +24,7 @@ import { HomeShell } from "@/home/HomeShell";
 import { WorkdirGate } from "@/components/WorkdirGate";
 import { ShareInbox } from "@/share/ShareInbox";
 import { OnboardingTour } from "@/components/OnboardingTour";
+import { AppAlert } from "@/components/AppAlert";
 
 /** Per-phase header metadata (icon + description + the gate that unlocks next). */
 const PHASE_META: Record<
@@ -125,6 +126,14 @@ export function App() {
     new URLSearchParams(window.location.search).has("p") ? "studio" : "home",
   );
 
+  // "Ir a Ajustes" from anywhere (e.g. the connect-API modal): switch to Home,
+  // where HomeShell/SettingsPage pick up the pending target section.
+  useEffect(() => {
+    const go = () => setView("home");
+    window.addEventListener("ms:open-settings", go);
+    return () => window.removeEventListener("ms:open-settings", go);
+  }, []);
+
   // Deep-link from anywhere (e.g. Historia's edit icon) to the Library, focused
   // on a specific asset.
   useEffect(() => {
@@ -170,6 +179,7 @@ export function App() {
         <WorkdirGate />
         <OnboardingTour />
         <ShareInbox />
+        <AppAlert />
         <HomeShell onEnterStudio={() => setView("studio")} />
       </>
     );
@@ -190,6 +200,7 @@ export function App() {
         <WorkdirGate />
         <OnboardingTour />
         <ShareInbox />
+        <AppAlert />
         <OAuthBanner />
         <ConnectionBanner />
         <Sidebar

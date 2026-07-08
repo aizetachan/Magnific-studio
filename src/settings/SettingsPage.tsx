@@ -19,6 +19,7 @@ import { useStore } from "@/state/ProjectStore";
 import { useCredentials, setCredentials } from "@/state/credentials";
 import { AnthropicClient } from "@/director/AnthropicClient";
 import { config } from "@/config";
+import { consumeSettingsTarget } from "@/components/AppAlert";
 import {
   PHASE_LABELS,
   creditsByPhase,
@@ -73,6 +74,15 @@ export function SettingsPage() {
   const [testing, setTesting] = useState(false);
   const [connError, setConnError] = useState<string | null>(null);
   const [section, setSection] = useState<Sec>("perfil");
+  // Deep link from the connect-API modal: land directly on Claude (API).
+  useEffect(() => {
+    if (consumeSettingsTarget() === "claude") setSection("claude");
+    const go = () => {
+      if (consumeSettingsTarget() === "claude") setSection("claude");
+    };
+    window.addEventListener("ms:open-settings", go);
+    return () => window.removeEventListener("ms:open-settings", go);
+  }, []);
   // Mock profile fields (visual only, not persisted).
   const [profile, setProfile] = useState({ name: "", username: "", email: "" });
 

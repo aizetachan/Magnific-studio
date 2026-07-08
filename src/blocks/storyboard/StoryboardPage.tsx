@@ -30,6 +30,7 @@ import { runBatched, runShotGeneration } from "../runner";
 import { IconSparkles, IconWand } from "@tabler/icons-react";
 import type { Shot } from "@/types/project";
 import { LockableTextarea } from "@/share/LockableTextarea";
+import { showAppAlert } from "@/components/AppAlert";
 
 export function StoryboardPage() {
   const store = useStore();
@@ -49,7 +50,7 @@ export function StoryboardPage() {
     try {
       await assignReferences(store);
     } catch (e) {
-      if (!silent) alert(e instanceof Error ? e.message : String(e));
+      if (!silent) showAppAlert(e instanceof Error ? e.message : String(e));
     } finally {
       setAssigning(false);
     }

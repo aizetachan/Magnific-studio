@@ -3,7 +3,7 @@ import { IconMovie, IconWand } from "@tabler/icons-react";
 import { useStore } from "@/state/ProjectStore";
 import { useActiveBlock } from "@/state/ActiveBlock";
 import { config } from "@/config";
-import { slugify, storeAssetBlob } from "@/state/assets";
+import { storeAssetBlob } from "@/state/assets";
 import { AudioSection } from "./AudioSection";
 import { Timeline } from "./TimelineEditor";
 import { ensureTimeline, readyShots } from "./timeline";
@@ -118,7 +118,7 @@ export function EditorPage() {
         throw new Error(data.error ?? "Falló el render");
       }
       // Store the final video on the user's machine like any other asset.
-      const finalUrl = await storeAssetBlob(`${slugify(project.name)}_final_${rid.slice(0, 6)}`, await res.blob(), ".mp4");
+      const finalUrl = await storeAssetBlob(`video-final_${rid.slice(0, 6)}`, await res.blob(), ".mp4");
       update((d) => {
         d.delivery.finalVideoUrl = finalUrl;
         if (d.delivery.finalVideoJob) {

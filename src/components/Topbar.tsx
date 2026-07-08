@@ -4,6 +4,7 @@ import { useStore } from "@/state/ProjectStore";
 import { ShareControls } from "@/share/ShareControls";
 import { downloadAllZip } from "@/state/download";
 import { exportBundle, importBundle } from "@/state/bundle";
+import { showAppAlert } from "@/components/AppAlert";
 
 /**
  * Global project actions (download assets / export bundle / import). These live
@@ -21,9 +22,9 @@ export function HeaderActions() {
     setZipping(true);
     try {
       const n = await downloadAllZip(project);
-      if (n === 0) alert("Aún no hay assets generados para descargar.");
+      if (n === 0) showAppAlert("Aún no hay assets generados para descargar.");
     } catch (e) {
-      alert("No se pudo crear el ZIP: " + (e instanceof Error ? e.message : e));
+      showAppAlert("No se pudo crear el ZIP: " + (e instanceof Error ? e.message : e));
     } finally {
       setZipping(false);
     }
@@ -34,7 +35,7 @@ export function HeaderActions() {
     try {
       await exportBundle(project);
     } catch (e) {
-      alert("No se pudo exportar: " + (e instanceof Error ? e.message : e));
+      showAppAlert("No se pudo exportar: " + (e instanceof Error ? e.message : e));
     } finally {
       setExporting(false);
     }
@@ -52,7 +53,7 @@ export function HeaderActions() {
         importJson(await file.text());
       }
     } catch (e) {
-      alert("No se pudo importar: " + (e instanceof Error ? e.message : e));
+      showAppAlert("No se pudo importar: " + (e instanceof Error ? e.message : e));
     } finally {
       setImporting(false);
     }

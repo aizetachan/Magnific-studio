@@ -23,7 +23,12 @@ import {
   saveProject,
   setUrlProject,
 } from "./persistence";
-import { initLocalDir, localDirStatus, subscribeLocalDir } from "./localdir";
+import {
+  initLocalDir,
+  localDirStatus,
+  setActiveProject,
+  subscribeLocalDir,
+} from "./localdir";
 import { hydrateAssetRefs, preloadLocalAssets } from "./assets";
 import { useShareSync } from "@/share/useShareSync";
 import { getCredentials, subscribeCredentials } from "./credentials";
@@ -39,6 +44,18 @@ function applyCreds(p: Project): Project {
   p.settings.directorModel = c.directorModel;
   p.settings.connectionTested = c.connectionTested;
   return p;
+}
+
+/** Whether the project is an untouched blank (same content as freshly created). */
+function isPristineBlank(p: Project): boolean {
+  const strip = (x: Project) => {
+    const c = structuredClone(x) as Project;
+    c.id = "";
+    c.createdAt = 0;
+    c.settings = undefined as unknown as Project["settings"]; // creds overlay varies
+    return JSON.stringify(c);
+  };
+  return strip(p) === strip(createBlankProject(p.name));
 }
 
 /**
@@ -127,8 +144,13 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
 
   // Autosave to this machine's localStorage + the linked working folder
   // (debounced to avoid thrashing). The event feeds the unsaved-changes guard.
+  // PRISTINE GUARD: the provider always holds a project, including the implicit
+  // blank one created just by landing on Home — persisting that phantom made a
+  // second "Proyecto sin título" appear next to the first real project. Skip
+  // saving until the user actually touches it (or it was saved deliberately).
   useEffect(() => {
     const t = setTimeout(() => {
+      if (!loadProject(project.id) && isPristineBlank(project)) return;
       saveProject(project);
       window.dispatchEvent(new Event("ms:project-saved"));
     }, 400);
@@ -143,6 +165,8 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   projectRef.current = project;
   useEffect(() => {
     let alive = true;
+    // Content paths ("assets/…") resolve inside THIS project's named folder.
+    setActiveProject(project.id);
     const hydrate = async () => {
       await preloadLocalAssets(projectRef.current);
       if (!alive) return;

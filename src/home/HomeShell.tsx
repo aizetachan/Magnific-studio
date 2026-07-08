@@ -20,6 +20,7 @@ import {
 import { useStore } from "@/state/ProjectStore";
 import { PageHead } from "@/components/PageHead";
 import { SettingsPage } from "@/settings/SettingsPage";
+import { peekSettingsTarget } from "@/components/AppAlert";
 import {
   deleteProjectForever,
   duplicateProject,
@@ -160,6 +161,13 @@ const ProjectCard = memo(function ProjectCard({ p, isStar, onOpen, onStar, onCon
 export function HomeShell({ onEnterStudio }: { onEnterStudio: () => void }) {
   const { switchProject, createProject } = useStore();
   const [section, setSection] = useState<Section>("dashboard");
+  // Jump straight to Settings when something requested it (connect-API modal).
+  useEffect(() => {
+    if (peekSettingsTarget()) setSection("admin");
+    const go = () => setSection("admin");
+    window.addEventListener("ms:open-settings", go);
+    return () => window.removeEventListener("ms:open-settings", go);
+  }, []);
   const [mockTitle, setMockTitle] = useState("Community");
   const [query, setQuery] = useState("");
   const [refresh, setRefresh] = useState(0);

@@ -26,6 +26,7 @@ import {
 } from "@/director/generate";
 import { generateAssetPreview, generateAssetPreviews } from "@/blocks/runner";
 import { uid } from "@/state/seed";
+import { showAppAlert } from "@/components/AppAlert";
 
 type Field = "logline" | "tone" | "characters" | "arcs";
 
@@ -67,7 +68,7 @@ export function StoryPage() {
     try {
       await generateStoryField(store, field);
     } catch (e) {
-      alert(e instanceof Error ? e.message : String(e));
+      showAppAlert(e instanceof Error ? e.message : String(e));
     } finally {
       setBusyField(null);
     }
@@ -81,7 +82,7 @@ export function StoryPage() {
     try {
       await developAction.run();
     } catch (e) {
-      alert(e instanceof Error ? e.message : String(e));
+      showAppAlert(e instanceof Error ? e.message : String(e));
     } finally {
       setGenerating(false);
     }

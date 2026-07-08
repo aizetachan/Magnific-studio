@@ -12,7 +12,12 @@
  * untouched.
  */
 
-import { localDirStatus, readLocalFile, writeLocalFile } from "./localdir";
+import {
+  localDirStatus,
+  readLocalFile,
+  resolveContentPath,
+  writeLocalFile,
+} from "./localdir";
 
 const LOCAL_PREFIX = "local:";
 
@@ -76,14 +81,21 @@ async function idbGetBlob(key: string): Promise<Blob | null> {
 // --- Storage backends: working folder first, IndexedDB otherwise ---
 
 async function persistBlob(path: string, blob: Blob): Promise<void> {
-  if (localDirStatus() === "ready" && (await writeLocalFile(path, blob))) return;
+  if (localDirStatus() === "ready") {
+    // "assets/x" resolves INSIDE the active project's named folder.
+    const at = await resolveContentPath(path);
+    if (await writeLocalFile(at, blob)) return;
+  }
   await idbPutBlob(path, blob);
 }
 
 async function loadBlob(path: string): Promise<Blob | null> {
   if (localDirStatus() === "ready") {
-    const f = await readLocalFile(path);
+    const f = await readLocalFile(await resolveContentPath(path));
     if (f) return f;
+    // Legacy layout: shared root assets/ (pre project-scoped folders).
+    const legacy = await readLocalFile(path);
+    if (legacy) return legacy;
   }
   try {
     return await idbGetBlob(path);

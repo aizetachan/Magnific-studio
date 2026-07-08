@@ -14,6 +14,7 @@ import { config } from "@/config";
 import { uid } from "@/state/seed";
 import { generateAssetSheet } from "../runner";
 import type { Job } from "@/types/project";
+import { showAppAlert } from "@/components/AppAlert";
 
 /**
  * Library — reusable reference assets for visual consistency. Characters and
@@ -162,7 +163,7 @@ export function LibraryPage({ focusAssetId }: { focusAssetId?: string | null }) 
         if (x) x.magnificIdentifier = String(data.identifier);
       });
     } catch (e) {
-      alert(e instanceof Error ? e.message : String(e));
+      showAppAlert(e instanceof Error ? e.message : String(e));
     }
   };
 

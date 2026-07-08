@@ -9,6 +9,7 @@ import type { StoreValue } from "@/state/ProjectStore";
 import { generateStory } from "@/director/generate";
 import { generateAssetPreviews } from "@/blocks/runner";
 import { StoryPage } from "./StoryPage";
+import { showAppAlert } from "@/components/AppAlert";
 
 /**
  * Story block — develops narrative only. NO image/video here (§2.1).
@@ -46,7 +47,7 @@ export function buildStoryBlock(api: StoreValue): PipelineBlock {
       // style and save them to the Library (fire-and-forget; shows progress on cards).
       void generateAssetPreviews(api);
     } catch (e) {
-      alert(e instanceof Error ? e.message : String(e));
+      showAppAlert(e instanceof Error ? e.message : String(e));
     }
   };
 
