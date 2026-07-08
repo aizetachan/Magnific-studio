@@ -23,6 +23,7 @@ import { LibraryPage } from "@/blocks/library/LibraryPage";
 import { HomeShell } from "@/home/HomeShell";
 import { WorkdirGate } from "@/components/WorkdirGate";
 import { ShareInbox } from "@/share/ShareInbox";
+import { OnboardingTour } from "@/components/OnboardingTour";
 
 /** Per-phase header metadata (icon + description + the gate that unlocks next). */
 const PHASE_META: Record<
@@ -167,6 +168,7 @@ export function App() {
     return (
       <>
         <WorkdirGate />
+        <OnboardingTour />
         <ShareInbox />
         <HomeShell onEnterStudio={() => setView("studio")} />
       </>
@@ -186,6 +188,7 @@ export function App() {
       <LeadSlotContext.Provider value={leadSlot}>
       <div className="app">
         <WorkdirGate />
+        <OnboardingTour />
         <ShareInbox />
         <OAuthBanner />
         <ConnectionBanner />

@@ -986,3 +986,31 @@ code { background: var(--surface-2); border: 1px solid var(--border-1); border-r
   display: flex; flex-direction: column; align-items: center; gap: 10px;
   color: #fff; margin-bottom: 2px;
 }
+
+/* --- First-run tutorial modal --- */
+.tour-modal {
+  position: relative; max-width: 460px; padding: 0 0 20px;
+  overflow: hidden; text-align: center;
+}
+.tour-modal__x {
+  position: absolute; top: 10px; right: 10px; z-index: 2;
+  width: 28px; height: 28px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  background: #10101080; color: #ffffffb3; border: none; cursor: pointer;
+}
+.tour-modal__x:hover { color: #fff; background: #101010cc; }
+.tour-modal__img {
+  width: 100%; aspect-ratio: 16 / 9; object-fit: cover; display: block;
+  background: var(--panel-4);
+}
+.tour-modal__title { font-size: 17px; margin: 16px 20px 6px; }
+.tour-modal__body { margin: 0 24px 16px; font-size: 13px; line-height: 1.5; }
+.tour-modal__nav {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 10px; padding: 0 16px;
+}
+.tour-modal__dots { display: flex; gap: 6px; }
+.tour-modal__dot {
+  width: 7px; height: 7px; border-radius: 50%; background: var(--ghost-2);
+}
+.tour-modal__dot.is-on { background: var(--emphasis-0); }
