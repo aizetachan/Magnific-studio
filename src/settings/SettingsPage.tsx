@@ -21,6 +21,7 @@ import { AnthropicClient } from "@/director/AnthropicClient";
 import { config } from "@/config";
 import { consumeSettingsTarget } from "@/components/AppAlert";
 import { setLang, useI18n, type TKey } from "@/i18n";
+import { Select } from "@/components/Select";
 import {
   PHASE_LABELS,
   creditsByPhase,
@@ -152,13 +153,14 @@ export function SettingsPage() {
           {section === "prefs" ? (
             <div className="card">
               <label className="card__label">{tr("settings.prefs.lang")}</label>
-              <select
+              <Select
                 value={lang}
-                onChange={(e) => setLang(e.target.value as "en" | "es")}
-              >
-                <option value="en">{tr("settings.lang.en")}</option>
-                <option value="es">{tr("settings.lang.es")}</option>
-              </select>
+                onChange={(v) => setLang(v as "en" | "es")}
+                options={[
+                  { value: "en", label: tr("settings.lang.en") },
+                  { value: "es", label: tr("settings.lang.es") },
+                ]}
+              />
               <p className="muted small">{tr("settings.prefs.langHelp")}</p>
             </div>
           ) : null}
@@ -374,23 +376,6 @@ export function SettingsPage() {
               <p className="muted small">
                 Perfil de demostración — todavía no se persiste.
               </p>
-            </div>
-          ) : null}
-
-          {/* ---------- Cuenta · Preferencias (mock) ---------- */}
-          {section === "prefs" ? (
-            <div className="card">
-              <label className="card__label">Idioma</label>
-              <select disabled defaultValue="es">
-                <option value="es">Español</option>
-                <option value="en">English</option>
-              </select>
-              <label className="card__label">Tema</label>
-              <select disabled defaultValue="dark">
-                <option value="dark">Oscuro</option>
-                <option value="light">Claro</option>
-              </select>
-              <p className="muted small">Mock — se cableará más adelante.</p>
             </div>
           ) : null}
 

@@ -8,6 +8,9 @@ import {
   IconHome,
   IconLayoutBoardSplit,
   IconMovie,
+  IconMusic,
+  IconPhoto,
+  IconVideo,
   IconPlus,
   IconSearch,
   IconSettings,
@@ -57,11 +60,11 @@ const HOME_TITLE: Record<Section, TKey | ""> = {
   mock: "",
 };
 
-const TOOLS = [
+const TOOLS: Array<{ icon: typeof IconMovie; label: string; studio?: boolean; url?: string }> = [
   { icon: IconMovie, label: "Studio", studio: true },
-  { icon: IconStack2, label: "Image" },
-  { icon: IconMovie, label: "Video" },
-  { icon: IconBook2, label: "Audio" },
+  { icon: IconPhoto, label: "Image", url: "https://www.magnific.com/app/ai-image-generator" },
+  { icon: IconVideo, label: "Video", url: "https://www.magnific.com/app/ai-video-generator" },
+  { icon: IconMusic, label: "Audio", url: "https://www.magnific.com/app/voiceover-generator" },
 ];
 
 // Teams (mock) shown in the account/team switcher; tag = the team's plan.
@@ -274,8 +277,8 @@ export function HomeShell({ onEnterStudio }: { onEnterStudio: () => void }) {
           <button className={`home__navitem ${section === "recents" ? "home__navitem--active" : ""}`} onClick={() => setSection("recents")}>
             <IconClock size={18} /> {t("home.recents")}
           </button>
-          <button className="home__navitem" onClick={() => window.open("https://www.magnific.com/app/explore#from_element=mainmenu", "_blank", "noopener")}><IconUsers size={18} /> Community</button>
-          <button className="home__navitem" onClick={() => window.open("https://www.magnific.com/stock#from_element=mainmenu", "_blank", "noopener")}><IconStack2 size={18} /> Stock</button>
+          <button className="home__navitem" onClick={() => window.open("https://www.magnific.com/app/explore#from_element=mainmenu", "_blank", "noopener")}><IconUsers size={18} /> {t("home.community")}</button>
+          <button className="home__navitem" onClick={() => window.open("https://www.magnific.com/stock#from_element=mainmenu", "_blank", "noopener")}><IconStack2 size={18} /> {t("home.stock")}</button>
           <button className={`home__navitem ${section === "library" ? "home__navitem--active" : ""}`} onClick={() => setSection("library")}><IconBook2 size={18} /> {t("home.library")}</button>
 
           <div className="home__sep" />
@@ -307,11 +310,11 @@ export function HomeShell({ onEnterStudio }: { onEnterStudio: () => void }) {
               </div>
             ) : null}
           </div>
-          <button className={`home__navitem ${section === "mock" && mockTitle === "Drafts" ? "home__navitem--active" : ""}`} onClick={() => openMock("Drafts")}><IconFile size={18} /> Drafts</button>
+          <button className={`home__navitem ${section === "mock" && mockTitle === "Drafts" ? "home__navitem--active" : ""}`} onClick={() => openMock("Drafts")}><IconFile size={18} /> {t("home.drafts")}</button>
           <button className={`home__navitem ${section === "all" ? "home__navitem--active" : ""}`} onClick={() => setSection("all")}>
             <IconApps size={18} /> {t("home.all")}
           </button>
-          <button className={`home__navitem ${section === "mock" && mockTitle === "Resources" ? "home__navitem--active" : ""}`} onClick={() => openMock("Resources")}><IconLayoutBoardSplit size={18} /> Resources</button>
+          <button className={`home__navitem ${section === "mock" && mockTitle === "Resources" ? "home__navitem--active" : ""}`} onClick={() => openMock("Resources")}><IconLayoutBoardSplit size={18} /> {t("home.resources")}</button>
           <button className={`home__navitem ${section === "trash" ? "home__navitem--active" : ""}`} onClick={() => setSection("trash")}>
             <IconTrash size={18} /> {t("home.trash")}
           </button>
@@ -354,7 +357,12 @@ export function HomeShell({ onEnterStudio }: { onEnterStudio: () => void }) {
               <TypingSearch />
               <div className="home__tools">
                 {TOOLS.map((t) => (
-                  <button key={t.label} className="home__tool" onClick={t.studio ? newProject : undefined} title={t.studio ? "Crear un proyecto en Studio" : "(mock)"}>
+                  <button
+                    key={t.label}
+                    className="home__tool"
+                    onClick={t.studio ? newProject : t.url ? () => window.open(t.url, "_blank", "noopener") : undefined}
+                    title={t.label}
+                  >
                     <span className={`home__tool-ic ${t.studio ? "home__tool-ic--studio" : ""}`}><t.icon size={22} /></span>
                     <span>{t.label}</span>
                   </button>
