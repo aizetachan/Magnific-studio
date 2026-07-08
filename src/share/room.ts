@@ -67,6 +67,8 @@ const encKey = (s: string) =>
 const decKey = (s: string) =>
   decodeURIComponent(escape(atob(s.replace(/-/g, "+").replace(/_/g, "/"))));
 
+const r0 = (root: DatabaseReference, path: string) => child(root, `locks/${encKey(path)}`);
+
 const CHUNK = 192 * 1024; // base64-safe chunk of the underlying bytes
 const SNAPSHOT_EVERY = 15; // refresh the catch-up snapshot every N revs
 
@@ -248,12 +250,24 @@ export class ShareRoom {
 
   lockField(path: string): void {
     const r = child(this.root, `locks/${encKey(path)}`);
-    void set(r, { uid: this.uid, email: this.email, at: Date.now() }).catch(() => {});
-    void onDisconnect(r).remove();
+    // Transactional acquire: NEVER steal a lock someone else holds — a click
+    // from a second user must not evict the person already typing.
+    void runTransaction(r, (cur: { uid?: string } | null) => {
+      if (cur && cur.uid && cur.uid !== this.uid) return undefined; // abort
+      return { uid: this.uid, email: this.name ?? this.email, at: Date.now() };
+    })
+      .then((tx) => {
+        if (tx.committed) void onDisconnect(r).remove();
+      })
+      .catch(() => {});
   }
 
   unlockField(path: string): void {
-    void remove(child(this.root, `locks/${encKey(path)}`)).catch(() => {});
+    // Only release your OWN lock (a late blur must not clear the peer's).
+    void runTransaction(r0(this.root, path), (cur: { uid?: string } | null) => {
+      if (cur && cur.uid && cur.uid !== this.uid) return cur; // keep theirs
+      return null;
+    }).catch(() => {});
   }
 
   onLocks(cb: (locks: LockEntry[]) => void): void {

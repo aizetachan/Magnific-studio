@@ -193,7 +193,7 @@ export function useShareSync(
           }
         }
       })();
-    }, 600);
+    }, 150); // near-realtime: words appear as they're typed, not in bursts
     return () => clearTimeout(t);
   }, [project]);
 }
