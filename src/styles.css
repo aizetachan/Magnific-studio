@@ -1151,10 +1151,14 @@ code { background: var(--surface-2); border: 1px solid var(--border-1); border-r
 .knock__who strong, .knock__who span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .knock__btn { padding: 5px 9px; font-size: 12px; }
 
-/* Danger button + title for critical deletes. */
+/* Danger button: gray at rest, red on hover (armed look only when usable). */
 .action--danger {
-  background: #e5484d; border: none; color: #fff; font-weight: 600;
+  background: var(--ghost-1); border: 1px solid var(--border-1);
+  color: var(--fg-1, #ddd); font-weight: 600;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
 }
-.action--danger:hover:not(:disabled) { filter: brightness(1.08); }
+.action--danger:hover:not(:disabled) {
+  background: #e5484d; border-color: #e5484d; color: #fff;
+}
 .action--danger:disabled { opacity: 0.45; cursor: not-allowed; }
 .confirm-modal__title--danger { color: #ff6b6f; }
