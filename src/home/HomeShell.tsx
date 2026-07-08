@@ -25,6 +25,7 @@ import { PageHead } from "@/components/PageHead";
 import { SettingsPage } from "@/settings/SettingsPage";
 import { DashboardLibrary } from "@/home/DashboardLibrary";
 import { useI18n, type TKey } from "@/i18n";
+import { UserMenu } from "@/auth/UserMenu";
 import { peekSettingsTarget } from "@/components/AppAlert";
 import {
   deleteProjectForever,
@@ -333,6 +334,7 @@ export function HomeShell({ onEnterStudio }: { onEnterStudio: () => void }) {
             ))
           )}
         </nav>
+        <UserMenu />
       </aside>
 
       <main className="home__main">

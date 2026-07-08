@@ -133,6 +133,7 @@ const STRINGS = {
     "home.drafts": "Drafts",
     "home.resources": "Resources",
     "common.soon": "soon",
+    "user.logout": "Log out",
     "home.newProject": "New project",
     "home.searchPlaceholder": "Search projects…",
     // Dashboard library
@@ -247,6 +248,7 @@ const STRINGS = {
     "home.drafts": "Borradores",
     "home.resources": "Recursos",
     "common.soon": "pronto",
+    "user.logout": "Cerrar sesión",
     "home.newProject": "Nuevo proyecto",
     "home.searchPlaceholder": "Buscar proyectos…",
     "dlib.title": "Biblioteca",

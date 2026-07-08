@@ -643,13 +643,17 @@ code { background: var(--surface-2); border: 1px solid var(--border-1); border-r
   position: fixed; top: 16px; left: 50%; transform: translateX(-50%); z-index: 1000;
   display: flex; align-items: center; gap: 10px;
   padding: 9px 14px; border-radius: var(--radius-lg);
-  background: var(--panel-1, #1a1f2e); border: 1px solid var(--warn, #c9a227);
-  font-size: 13px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  /* Brand pink: soft dark pink surface + pink border, white text on top. */
+  background: color-mix(in srgb, var(--emphasis-2, #ff1a90) 16%, #141014);
+  border: 1px solid var(--emphasis-0, #ff58ae);
+  color: #fff; font-size: 13px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
 }
 .conn-banner__cta {
-  background: var(--primary-0); color: #fafafa; text-decoration: none;
-  padding: 5px 12px; border-radius: var(--radius-md, 8px); font-weight: 500;
+  background: linear-gradient(135deg, var(--emphasis-0, #ff58ae), var(--emphasis-2, #ff1a90));
+  color: #fff; text-decoration: none; border: none; cursor: pointer; font: inherit;
+  padding: 5px 12px; border-radius: var(--radius-md, 8px); font-weight: 600;
 }
+.conn-banner__cta:hover { filter: brightness(1.08); }
 
 /* Failed-generation notice + retry (in cards) */
 .kf__fail {
@@ -1073,3 +1077,35 @@ code { background: var(--surface-2); border: 1px solid var(--border-1); border-r
   letter-spacing: 0.4px; padding: 2px 6px; border-radius: 999px;
   background: var(--ghost-1); color: var(--fg-2, #999);
 }
+
+/* --- Signed-in user chip (sidebar bottom) --- */
+.usermenu { position: relative; margin-top: auto; padding: 10px 8px 6px; }
+.usermenu__chip {
+  width: 100%; display: flex; align-items: center; gap: 9px;
+  padding: 8px 10px; border-radius: 12px; cursor: pointer;
+  background: transparent; border: none; color: inherit; font: inherit;
+  text-align: left;
+}
+.usermenu__chip:hover { background: var(--ghost-1); }
+.usermenu__avatar {
+  width: 26px; height: 26px; border-radius: 50%; flex: none; object-fit: cover;
+}
+.usermenu__avatar--initial {
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--emphasis-0); color: #fff; font-size: 13px; font-weight: 700;
+}
+.usermenu__name {
+  flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis;
+  white-space: nowrap; font-size: 13px;
+}
+.usermenu__pop {
+  position: absolute; bottom: calc(100% + 4px); left: 8px; right: 8px; z-index: 50;
+  padding: 6px; background: var(--panel-4); border: 1px solid var(--border-2);
+  border-radius: 12px; box-shadow: 0 16px 40px #00000080;
+}
+.usermenu__item {
+  width: 100%; display: flex; align-items: center; gap: 8px;
+  padding: 9px 10px; border-radius: 8px; cursor: pointer; text-align: left;
+  background: transparent; border: none; color: inherit; font: inherit;
+}
+.usermenu__item:hover { background: var(--panel-6); }
