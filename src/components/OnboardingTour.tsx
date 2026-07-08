@@ -18,8 +18,8 @@ interface TourStep {
 }
 
 const STEPS: TourStep[] = [
-  { image: "/tutorial-1.jpg", title: "tour.s1.title", body: "tour.s1.body" },
-  { image: "/tutorial-2.jpg", title: "tour.s2.title", body: "tour.s2.body" },
+  { image: "/tutorial-1.png", title: "tour.s1.title", body: "tour.s1.body" },
+  { image: "/tutorial-2.png", title: "tour.s2.title", body: "tour.s2.body" },
 ];
 
 function seen(): boolean {

@@ -1000,7 +1000,8 @@ code { background: var(--surface-2); border: 1px solid var(--border-1); border-r
 }
 .tour-modal__x:hover { color: #fff; background: #101010cc; }
 .tour-modal__img {
-  width: 100%; aspect-ratio: 16 / 9; object-fit: cover; display: block;
+  /* Matches the onboarding screenshots' native ratio (991x569) — no crop. */
+  width: 100%; aspect-ratio: 991 / 569; object-fit: cover; display: block;
   background: var(--panel-4);
 }
 .tour-modal__title { font-size: 17px; margin: 16px 20px 6px; }
