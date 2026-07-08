@@ -1417,3 +1417,48 @@ code { background: var(--surface-2); border: 1px solid var(--border-1); border-r
   color: var(--fg-1, #ddd);
 }
 .action--muted:hover:not(:disabled) { background: var(--surface-3); }
+
+/* --- In-file Library: dashboard-style grid + asset modal --- */
+.librarypage { display: flex; flex-direction: column; gap: 26px; }
+.librarypage__grouphead { display: flex; align-items: center; gap: 12px; }
+.librarypage__grouphead .mini { display: inline-flex; align-items: center; gap: 5px; }
+.librarypage__import { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
+.librarypage__card { text-align: left; padding: 0; cursor: pointer; background: none; border: none; color: inherit; font: inherit; }
+.librarypage__card .dlib__img { position: relative; }
+.librarypage__count {
+  position: absolute; top: 8px; right: 8px; font-size: 11px; font-weight: 700;
+  padding: 3px 8px; border-radius: 999px; background: rgba(10, 10, 14, 0.72);
+  backdrop-filter: blur(6px); border: 1px solid var(--border-2); color: var(--fg-1, #ddd);
+}
+.librarypage__newimg {
+  display: grid; place-items: center; color: var(--fg-4, #666);
+  border: 1px dashed var(--border-2) !important; background: transparent !important;
+}
+.librarypage__card--new:hover .librarypage__newimg { color: var(--emphasis-0, #ff58ae); border-color: var(--emphasis-0, #ff58ae) !important; }
+
+/* Asset modal */
+.amodal { max-width: 560px; width: min(560px, calc(100vw - 32px)); display: flex; flex-direction: column; gap: 12px; max-height: 88vh; overflow-y: auto; }
+.amodal__head { display: flex; align-items: center; gap: 8px; }
+.amodal__name {
+  flex: 1; min-width: 0; font-size: 17px; font-weight: 600;
+  background: transparent; border: 1px solid transparent; border-radius: 8px; padding: 6px 8px;
+}
+.amodal__name:hover, .amodal__name:focus { border-color: var(--border-2); background: var(--panel-6); }
+.amodal__confirm { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; }
+.amodal__main { position: relative; border-radius: 14px; overflow: hidden; background: #000; aspect-ratio: 16 / 10; }
+.amodal__mainimg { width: 100%; height: 100%; object-fit: contain; display: block; }
+.amodal__placeholder { width: 100%; height: 100%; display: grid; place-items: center; color: var(--fg-4, #555); font-size: 13px; }
+.amodal__queue { position: absolute; left: 10px; right: 10px; bottom: 10px; }
+.amodal__slots { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
+.amodal__slot {
+  aspect-ratio: 1; border-radius: 10px; overflow: hidden; background: var(--panel-6);
+  border: 1px solid var(--border-1); cursor: pointer; padding: 0; display: grid; place-items: center;
+}
+.amodal__slot:hover { border-color: var(--emphasis-0, #ff58ae); }
+.amodal__slotimg { width: 100%; height: 100%; object-fit: cover; }
+.amodal__slot--free { border-style: dashed; color: var(--fg-4, #555); font-size: 18px; cursor: default; }
+.amodal__slot--free:hover { border-color: var(--border-1); }
+.amodal__prompt { min-height: 64px; }
+.amodal__actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.amodal__count { margin-left: auto; }
+.amodal__style, .amodal__desc { display: flex; flex-direction: column; gap: 8px; }

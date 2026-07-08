@@ -284,6 +284,19 @@ export async function createLibraryAsset(mcpUrl, token, { name, type, descriptio
   return { identifier: identifier ?? numericId, id: numericId, raw: textOf(res) };
 }
 
+/** Edit an owned library asset by numeric id (partial: images/cover/desc). */
+export async function editLibraryAsset(mcpUrl, token, { id, name, description, images }) {
+  const args = { id };
+  if (name) args.name = name;
+  if (description != null) args.description = description;
+  if (Array.isArray(images) && images.length) {
+    args.images = images;
+    args.cover = images[0];
+  }
+  const res = await callTool(mcpUrl, token, "library_edit", args);
+  return { raw: textOf(res) };
+}
+
 /**
  * Upload raw image bytes as a Magnific creation (request_upload → PUT →
  * finalize). Returns the creation identifier to use in library refs.
