@@ -199,7 +199,8 @@ export function App() {
   // blocked, and a banner points to the phase whose validation unlocks it.
   const phaseLocked = !showLibrary && activeBlock.getGateState() === "locked";
   const activeIdx = BLOCK_ORDER.indexOf(store.activePhase);
-  const prevBlock = activeIdx > 0 ? blocks[BLOCK_ORDER[activeIdx - 1]] : null;
+  const prevPhase = activeIdx > 0 ? BLOCK_ORDER[activeIdx - 1] : null;
+  const prevBlock = prevPhase ? blocks[prevPhase] : null;
   const HeaderIcon = showLibrary ? IconLibrary : meta.icon;
   const headerTitle = showLibrary ? "Biblioteca" : activeBlock.label;
   const headerDesc = showLibrary
@@ -268,7 +269,7 @@ export function App() {
                   <span>{t("preview.banner", { phase: activeBlock.label, prev: prevBlock.label })}</span>
                   <button
                     className="action action--gen"
-                    onClick={() => store.setActivePhase(prevBlock.phase)}
+                    onClick={() => prevPhase && store.setActivePhase(prevPhase)}
                   >
                     {t("preview.go", { prev: prevBlock.label })}
                   </button>
