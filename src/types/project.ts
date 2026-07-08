@@ -231,6 +231,11 @@ export interface Settings {
   anthropicApiKey: string;
   /** Default model for director tasks (configurable). */
   directorModel: string;
+  /** Which API drives the Director ("anthropic" by default). */
+  directorProvider?: "anthropic" | "openai";
+  /** User's OpenAI API key (browser-only, like the Anthropic one). */
+  openaiApiKey?: string;
+  openaiModel?: string;
   /** User's Magnific Business REST API key. In memory only; never exported. */
   magnificApiKey: string;
   /** Whether the Magnific Business REST API (ApiTransport) is connected. */

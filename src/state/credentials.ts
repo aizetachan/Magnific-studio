@@ -14,10 +14,17 @@ import { config } from "@/config";
  */
 export type ConnState = "untested" | "ok" | "failed";
 
+export type DirectorProvider = "anthropic" | "openai";
+
 export interface Credentials {
   anthropicApiKey: string;
   directorModel: string;
   connectionTested: ConnState;
+  /** Which brain drives the Director. */
+  provider: DirectorProvider;
+  openaiApiKey: string;
+  openaiModel: string;
+  openaiTested: ConnState;
 }
 
 const STORE_KEY = "magnific-studio:credentials";
@@ -39,6 +46,10 @@ function persist(): void {
         directorModel: creds.directorModel,
         // "ok" is remembered so the UI doesn't ask to re-test every visit.
         connectionTested: creds.connectionTested === "ok" ? "ok" : "untested",
+        provider: creds.provider,
+        openaiApiKey: creds.openaiApiKey,
+        openaiModel: creds.openaiModel,
+        openaiTested: creds.openaiTested === "ok" ? "ok" : "untested",
       }),
     );
   } catch {
@@ -51,6 +62,10 @@ let creds: Credentials = {
   anthropicApiKey: stored.anthropicApiKey ?? config.seed.anthropicApiKey,
   directorModel: stored.directorModel ?? config.seed.directorModel,
   connectionTested: stored.connectionTested === "ok" ? "ok" : "untested",
+  provider: stored.provider === "openai" ? "openai" : "anthropic",
+  openaiApiKey: stored.openaiApiKey ?? "",
+  openaiModel: stored.openaiModel ?? "gpt-5",
+  openaiTested: stored.openaiTested === "ok" ? "ok" : "untested",
 };
 
 const subs = new Set<() => void>();
