@@ -48,6 +48,16 @@ function sharedView(p: Project): Project {
   return clone;
 }
 
+/** Last room revision this device has incorporated (per room, durable). */
+const revKey = (roomId: string) => `magnific-studio:room-rev:${roomId}`;
+function getMyRev(roomId: string): number {
+  const v = Number(localStorage.getItem(revKey(roomId)) ?? "0");
+  return Number.isFinite(v) ? v : 0;
+}
+function setMyRev(roomId: string, rev: number): void {
+  if (rev > getMyRev(roomId)) localStorage.setItem(revKey(roomId), String(rev));
+}
+
 /** Collect every local: ref present in a value. */
 function localRefsIn(v: unknown): string[] {
   const out = new Set<string>();
@@ -105,16 +115,35 @@ export function useShareSync(
       try {
       await room.join({ projectId: projectRef.current.id, ownerUid: share?.ownerUid ?? user.uid });
 
-      // Catch-up: adopt the room snapshot when it's ahead of what we have.
+      // Catch-up by REVISION: adopt the room snapshot ONLY if it's ahead of
+      // what this device has already incorporated. Never revert local content
+      // to an older rolling snapshot (a reload must not lose work).
       const snap = await room.readSnapshot();
-      const localEmpty = projectRef.current.shots.length === 0 && projectRef.current.scenes.length === 0;
-      if (snap && (localEmpty || share?.ownerUid !== user.uid)) {
+      const myRev = getMyRev(roomId);
+      if (snap && snap.rev > myRev) {
         await applyRemoteJson(snap.json);
+        setMyRev(roomId, snap.rev);
       } else {
         lastSynced.current = sharedView(projectRef.current);
+        // We kept local state: if it differs from the room snapshot, publish
+        // the diff so the room (and everyone in it) converges to OUR version
+        // instead of resurrecting the stale one (covers offline edits too).
+        if (snap) {
+          try {
+            const base = JSON.parse(snap.json) as Project;
+            const ops = computeOps(base, sharedView(projectRef.current));
+            if (ops.length > 0) {
+              const rev = await room.publish(ops, JSON.stringify(sharedView(projectRef.current)));
+              setMyRev(roomId, rev);
+            }
+          } catch (e) {
+            console.warn("[share] catch-up diff failed:", e);
+          }
+        }
       }
 
       room.onPatch((p) => {
+        setMyRev(roomId, p.rev);
         if (p.uid === user.uid) return;
         void (async () => {
           for (const op of p.ops) {
@@ -179,7 +208,8 @@ export function useShareSync(
         const ops = computeOps(prev, current);
         if (ops.length === 0) return;
         lastSynced.current = current;
-        await room.publish(ops, JSON.stringify(current)).catch(() => {});
+        const rev = await room.publish(ops, JSON.stringify(current)).catch(() => 0);
+        if (rev) setMyRev(room.roomId, rev);
         // Push any NEW local assets referenced by the ops to the room so
         // peers store their own copy (one generation → N local folders).
         for (const op of ops) {
