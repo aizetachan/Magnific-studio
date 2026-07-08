@@ -186,7 +186,7 @@ function ScriptPreview({
     <div className="asset-modal" role="dialog" aria-modal="true" onClick={onClose}>
       <div className="script-modal" onClick={(e) => e.stopPropagation()}>
         <div className="script-modal__head">
-          <strong>Guion — {title}</strong>
+          <strong>Guion: {title}</strong>
           <div className="kf__row">
             <button className="mini" onClick={onDownload}>
               <IconDownload size={15} /> Descargar .txt

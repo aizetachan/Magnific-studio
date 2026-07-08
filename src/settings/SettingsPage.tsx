@@ -398,7 +398,7 @@ export function SettingsPage() {
                   Activar 2FA
                 </button>
               </div>
-              <p className="muted small">Mock — pendiente de backend de cuentas.</p>
+              <p className="muted small">Mock, pendiente de backend de cuentas.</p>
             </div>
           ) : null}
 
@@ -410,7 +410,7 @@ export function SettingsPage() {
           section === "billing" ? (
             <div className="card settings__mock">
               <p className="muted">
-                <b>{SEC_LABEL[section]}</b> — sección de organización en
+                <b>{SEC_LABEL[section]}</b>: sección de organización en
                 construcción.
               </p>
               <p className="muted small">

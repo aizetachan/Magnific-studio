@@ -255,7 +255,7 @@ export function StoryPage() {
       {!s.logline && s.characters.length === 0 ? (
         <OnboardingToast storageKey="ms_onboard_story">
           Empieza aquí: escribe tu idea en <b>Idea</b> y pulsa{" "}
-          <b>Generar historia</b> — Claude propondrá la idea, estilo visual,
+          <b>Generar historia</b> y Claude propondrá la idea, estilo visual,
           personajes (con imagen), entornos y arcos.
         </OnboardingToast>
       ) : null}

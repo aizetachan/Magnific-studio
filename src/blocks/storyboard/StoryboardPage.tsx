@@ -273,7 +273,7 @@ export function StoryboardPage() {
                   value={scene.locationId ?? ""}
                   onChange={(e) => setSceneLocation(scene.id, e.target.value)}
                 >
-                  <option value="">— sin entorno —</option>
+                  <option value="">Sin entorno</option>
                   {libLocs.map((l) => (
                     <option key={l.id} value={l.id}>{l.name}</option>
                   ))}
@@ -417,7 +417,7 @@ export function StoryboardPage() {
                         update((d) => {
                           const s = d.shots.find((x) => x.id === shot.id)!;
                           if (!/ángulo/i.test(s.keyframePrompt))
-                            s.keyframePrompt += " — variación de ángulo";
+                            s.keyframePrompt += ", variación de ángulo";
                         });
                         regen(shot);
                       }}

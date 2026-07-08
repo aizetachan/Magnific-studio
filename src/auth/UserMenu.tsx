@@ -37,7 +37,7 @@ export function UserMenu() {
   }, [open]);
 
   if (!authEnabled || !user) return null;
-  const name = user.displayName || user.email || "—";
+  const name = user.displayName || user.email || "Usuario";
 
   return (
     <div className="usermenu" ref={rootRef}>

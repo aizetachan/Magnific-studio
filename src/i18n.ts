@@ -59,22 +59,22 @@ const STRINGS = {
     // Workdir gate
     "workdir.title": "Where should we save your work?",
     "workdir.body1":
-      "Your content (projects, generated images and videos) is stored only on your machine — never on our servers.",
+      "Your content (projects, generated images and videos) is stored only on your machine, never on our servers.",
     "workdir.body2":
       "Recommended: pick a working folder and everything will be saved there automatically.",
     "workdir.browserHint":
-      "When you pick it, your browser will ask you to confirm editing files in that folder — click “Allow”. That prompt comes from the browser and is your guarantee of control.",
+      "When you pick it, your browser will ask you to confirm editing files in that folder: click “Allow”. That prompt comes from the browser and is your guarantee of control.",
     "workdir.pick": "Choose folder",
     "workdir.browserOnly": "Only in this browser",
     "workdir.reconnect": "Reconnect your working folder",
     "workdir.reconnectCta": "Reconnect folder",
     "workdir.pickCta": "Choose your working folder to save on your machine.",
     "workdir.fallbackToast":
-      "Your work is saved only in this browser. Before closing, use Export (ZIP) to take a copy — we'll warn you if you close with unexported changes.",
+      "Your work is saved only in this browser. Before closing, use Export (ZIP) to take a copy. We'll warn you if you close with unexported changes.",
     // Onboarding tour
     "tour.s1.title": "Connect your accounts",
     "tour.s1.body":
-      "Go to Settings and connect your Magnific account (OAuth) — image and video generation uses your credits — and paste your Claude API key, which directs the story. Neither leaves your session.",
+      "Go to Settings and connect your Magnific account (OAuth), whose credits power image and video generation, and paste your Claude API key, which directs the story. Neither leaves your session.",
     "tour.s2.title": "From idea to short film",
     "tour.s2.body":
       "Work in phases: Story → Script → Storyboard → Production → Delivery. Validate each phase to unlock the next; everything you generate is saved to your working folder.",
@@ -97,7 +97,7 @@ const STRINGS = {
     "banner.magnificError": "Could not connect to Magnific:",
     // Share
     "share.button": "Share project",
-    "share.buttonShared": "Shared project — invite more people",
+    "share.buttonShared": "Shared project: invite more people",
     "share.title": "Share",
     "share.lead":
       "You'll work together in real time while you're online at the same time. Everything generated is saved on each person's machine; a field being edited shows as locked for everyone else.",
@@ -124,11 +124,11 @@ const STRINGS = {
     "share.reject": "Reject",
     "join.waitingTitle": "Waiting for approval",
     "join.waitingBody": "waiting for approval from",
-    "join.waitingHint": "Keep this tab open — you'll enter automatically once approved.",
+    "join.waitingHint": "Keep this tab open: you'll enter automatically once approved.",
     "join.rejectedTitle": "Request declined",
     "join.rejectedBody": "The owner declined your request for this link.",
     "join.expiredTitle": "Link expired",
-    "join.expiredBody": "This link has expired — ask for a new one.",
+    "join.expiredBody": "This link has expired. Ask for a new one.",
     "join.invalidTitle": "Invalid link",
     "join.invalidBody": "This link doesn't exist or was regenerated.",
     "user.collaborators": "Collaborators",
@@ -162,7 +162,7 @@ const STRINGS = {
     "home.resources": "Resources",
     "common.soon": "soon",
     "user.logout": "Log out",
-    "preview.banner": "Preview of {phase} — it unlocks when you validate {prev}.",
+    "preview.banner": "Preview of {phase}: it unlocks when you validate {prev}.",
     "preview.go": "Go to {prev}",
     "trash.empty": "Trash is empty.",
     "trash.inTrash": "in trash",
@@ -187,7 +187,7 @@ const STRINGS = {
     "home.searchPlaceholder": "Search projects…",
     // Dashboard library
     "dlib.title": "Library",
-    "dlib.lead": "Pick a file to browse its characters, environments and style — without opening it.",
+    "dlib.lead": "Pick a file to browse its characters, environments and style without opening it.",
     "dlib.empty": "No projects with library content yet.",
     "dlib.back": "All files",
     "dlib.assets": "assets",
@@ -233,17 +233,17 @@ const STRINGS = {
     "workdir.body2":
       "Recomendado: elige una carpeta de trabajo y todo se guardará ahí automáticamente.",
     "workdir.browserHint":
-      "Al elegirla, tu navegador te pedirá confirmación para editar archivos en esa carpeta — pulsa «Permitir». Ese aviso es del navegador y es tu garantía de control.",
+      "Al elegirla, tu navegador te pedirá confirmación para editar archivos en esa carpeta: pulsa «Permitir». Ese aviso es del navegador y es tu garantía de control.",
     "workdir.pick": "Elegir carpeta",
     "workdir.browserOnly": "Solo en este navegador",
     "workdir.reconnect": "Reconecta tu carpeta de trabajo",
     "workdir.reconnectCta": "Reconectar carpeta",
     "workdir.pickCta": "Elige tu carpeta de trabajo para guardar en tu máquina.",
     "workdir.fallbackToast":
-      "Tu trabajo se guarda solo en este navegador. Antes de cerrar, usa Exportar (ZIP) para llevarte una copia — te avisaremos si cierras con cambios sin exportar.",
+      "Tu trabajo se guarda solo en este navegador. Antes de cerrar, usa Exportar (ZIP) para llevarte una copia. Te avisaremos si cierras con cambios sin exportar.",
     "tour.s1.title": "Conecta tus cuentas",
     "tour.s1.body":
-      "Ve a Ajustes y conecta tu cuenta de Magnific (OAuth) — la generación de imagen y vídeo usa tus créditos — y pega tu API key de Claude, que dirige la historia. Ninguna de las dos sale de tu sesión.",
+      "Ve a Ajustes y conecta tu cuenta de Magnific (OAuth), cuyos créditos usa la generación de imagen y vídeo, y pega tu API key de Claude, que dirige la historia. Ninguna de las dos sale de tu sesión.",
     "tour.s2.title": "De la idea al corto",
     "tour.s2.body":
       "Trabaja por fases: Historia → Guion → Storyboard → Producción → Entrega. Valida cada fase para desbloquear la siguiente; todo lo que generes se guarda en tu carpeta de trabajo.",
@@ -263,7 +263,7 @@ const STRINGS = {
     "banner.magnificUnconfigured": "El backend no tiene MAGNIFIC_MCP_URL configurado.",
     "banner.magnificError": "No se pudo conectar a Magnific:",
     "share.button": "Compartir proyecto",
-    "share.buttonShared": "Proyecto compartido — invitar a más gente",
+    "share.buttonShared": "Proyecto compartido: invitar a más gente",
     "share.title": "Compartir",
     "share.lead":
       "Trabajaréis en tiempo real mientras estéis conectados a la vez. Todo lo que se genere se guarda en la máquina de cada uno; si un campo está siendo editado, los demás lo verán bloqueado.",
@@ -290,11 +290,11 @@ const STRINGS = {
     "share.reject": "Rechazar",
     "join.waitingTitle": "Esperando aprobación",
     "join.waitingBody": "pendiente de la aprobación de",
-    "join.waitingHint": "Mantén esta pestaña abierta — entrarás automáticamente cuando te aprueben.",
+    "join.waitingHint": "Mantén esta pestaña abierta: entrarás automáticamente cuando te aprueben.",
     "join.rejectedTitle": "Solicitud rechazada",
     "join.rejectedBody": "El propietario ha rechazado tu solicitud para este enlace.",
     "join.expiredTitle": "Enlace caducado",
-    "join.expiredBody": "Este enlace ha caducado — pide uno nuevo.",
+    "join.expiredBody": "Este enlace ha caducado. Pide uno nuevo.",
     "join.invalidTitle": "Enlace no válido",
     "join.invalidBody": "Este enlace no existe o fue regenerado.",
     "user.collaborators": "Colaboradores",
@@ -326,7 +326,7 @@ const STRINGS = {
     "home.resources": "Recursos",
     "common.soon": "pronto",
     "user.logout": "Cerrar sesión",
-    "preview.banner": "Vista previa de {phase} — se desbloquea al validar {prev}.",
+    "preview.banner": "Vista previa de {phase}: se desbloquea al validar {prev}.",
     "preview.go": "Ir a {prev}",
     "trash.empty": "La papelera está vacía.",
     "trash.inTrash": "en la papelera",
@@ -350,7 +350,7 @@ const STRINGS = {
     "home.newProject": "Nuevo proyecto",
     "home.searchPlaceholder": "Buscar proyectos…",
     "dlib.title": "Biblioteca",
-    "dlib.lead": "Elige un archivo para ver sus personajes, entornos y estilo — sin tener que abrirlo.",
+    "dlib.lead": "Elige un archivo para ver sus personajes, entornos y estilo sin tener que abrirlo.",
     "dlib.empty": "Aún no hay proyectos con contenido de biblioteca.",
     "dlib.back": "Todos los archivos",
     "dlib.assets": "assets",

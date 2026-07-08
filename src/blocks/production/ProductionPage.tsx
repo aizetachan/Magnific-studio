@@ -318,7 +318,7 @@ export function ProductionPage() {
                                   (x) => x.id === shot.id,
                                 )!;
                                 if (!/cinematogr/i.test(s.videoPrompt))
-                                  s.videoPrompt += " — más cinematográfico";
+                                  s.videoPrompt += ", más cinematográfico";
                               });
                               regen(shot);
                             }}

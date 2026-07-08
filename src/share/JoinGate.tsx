@@ -160,7 +160,7 @@ export function JoinGate() {
             </h3>
             <div className="confirm-modal__msg">
               <p>
-                «{phase.link.projectName}» — {t("join.waitingBody")}{" "}
+                «{phase.link.projectName}»: {t("join.waitingBody")}{" "}
                 <b>{phase.link.ownerName}</b>.
               </p>
               <p className="muted small">{t("join.waitingHint")}</p>
