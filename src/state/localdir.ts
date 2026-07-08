@@ -277,8 +277,121 @@ export async function listLocalDirs(): Promise<string[]> {
   return out;
 }
 
-// --- Project-level helpers (layout: <projectId>/project.json + assets/) ---
+// --- Project-level helpers ---
+//
+// Human layout: the project folder is named after the PROJECT NAME (so files
+// are findable in Finder/Explorer), and renaming the project renames the
+// folder. Identity is kept in an index file at the root; if the user renames
+// a folder by hand we re-find the project by scanning project.json ids.
+//
+//   <root>/<Nombre del proyecto>/project.json
+//   <root>/assets/<proyecto>_<escena-plano-campo>_<sufijo>.<ext>  (shared)
 
-export const projectJsonPath = (projectId: string) => `${projectId}/project.json`;
-export const assetPath = (projectId: string, filename: string) =>
-  `${projectId}/assets/${filename}`;
+const INDEX_FILE = ".magnific-studio-index.json";
+let folderById: Record<string, string> | null = null;
+
+/** Filesystem-safe folder/file name from a human title. */
+export function fsSafeName(name: string): string {
+  const clean = name
+    .replace(/[\\/:*?"<>|]/g, "-")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 60);
+  return clean || "Proyecto";
+}
+
+async function loadIndex(): Promise<Record<string, string>> {
+  if (folderById) return folderById;
+  try {
+    const f = await readLocalFile(INDEX_FILE);
+    folderById = f ? ((JSON.parse(await f.text()).projects ?? {}) as Record<string, string>) : {};
+  } catch {
+    folderById = {};
+  }
+  return folderById;
+}
+
+async function saveIndex(): Promise<void> {
+  if (!folderById) return;
+  await writeLocalFile(INDEX_FILE, JSON.stringify({ projects: folderById }, null, 2));
+}
+
+/** Current folder for a project id (index → legacy id-folder fallback). */
+async function folderFor(projectId: string): Promise<string> {
+  const idx = await loadIndex();
+  return idx[projectId] ?? projectId;
+}
+
+/**
+ * Make sure the project's folder exists and matches its (sanitized) name;
+ * renames the folder when the project was renamed. The folder only holds
+ * project.json (assets live in the shared root assets/), so a rename is a
+ * cheap move of one file. Returns the folder name to write into.
+ */
+export async function ensureProjectFolder(
+  projectId: string,
+  projectName: string,
+): Promise<string> {
+  const idx = await loadIndex();
+  const current = idx[projectId];
+  let wanted = fsSafeName(projectName);
+  // Collision: another project already owns that folder name.
+  const taken = Object.entries(idx).some(([id, f]) => id !== projectId && f === wanted);
+  if (taken) wanted = `${wanted} (${projectId.slice(-4)})`;
+  if (current === wanted) return wanted;
+
+  if (current && current !== wanted) {
+    // Move project.json to the renamed folder; drop the old (now empty) dir.
+    const old = await readLocalFile(`${current}/project.json`);
+    if (old) {
+      await writeLocalFile(`${wanted}/project.json`, old);
+      const at = await dirFor(`${current}/project.json`, false);
+      if (at) {
+        await at.dir.removeEntry(at.name).catch(() => {});
+        await rootHandle?.removeEntry(current).catch(() => {}); // only if empty
+      }
+    }
+  }
+  idx[projectId] = wanted;
+  await saveIndex();
+  return wanted;
+}
+
+/**
+ * Find a project's json by id: indexed folder, legacy <id>/ folder, or a scan
+ * of all folders (covers the user renaming the folder by hand — we re-adopt
+ * it into the index).
+ */
+export async function readProjectJson(projectId: string): Promise<File | null> {
+  const direct = await readLocalFile(`${await folderFor(projectId)}/project.json`);
+  if (direct) return direct;
+  const legacy = await readLocalFile(`${projectId}/project.json`);
+  if (legacy) return legacy;
+  // Scan: the user may have renamed the folder in Finder.
+  if (!rootHandle || status !== "ready") return null;
+  try {
+    for await (const [name, entry] of rootHandle.entries()) {
+      if (entry.kind !== "directory") continue;
+      const f = await readLocalFile(`${name}/project.json`);
+      if (!f) continue;
+      try {
+        if ((JSON.parse(await f.text()) as { id?: string }).id === projectId) {
+          const idx = await loadIndex();
+          idx[projectId] = name;
+          await saveIndex();
+          return f;
+        }
+      } catch {
+        /* skip corrupt json */
+      }
+    }
+  } catch {
+    /* ignore */
+  }
+  return null;
+}
+
+/** Where to write a project's json right now (folder must exist already). */
+export async function projectJsonPathFor(projectId: string): Promise<string> {
+  return `${await folderFor(projectId)}/project.json`;
+}

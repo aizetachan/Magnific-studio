@@ -10,9 +10,9 @@
 import type { Job, Project } from "@/types/project";
 import { uid } from "./seed";
 import {
+  ensureProjectFolder,
   localDirStatus,
-  projectJsonPath,
-  readLocalFile,
+  readProjectJson,
   writeLocalFile,
 } from "./localdir";
 import { dehydrateAssetRefs } from "./assets";
@@ -201,12 +201,13 @@ export function saveProject(p: Project): void {
     // Quota exceeded or serialization issue — keep the app working regardless.
   }
   // Mirror to the user's working folder (local-first: content lives on their
-  // machine, never on the server). Fire-and-forget; localStorage is the cache.
+  // machine, never on the server). The folder is named after the project and
+  // follows renames. Fire-and-forget; localStorage is the cache.
   if (localDirStatus() === "ready") {
-    void writeLocalFile(
-      projectJsonPath(p.id),
-      JSON.stringify(sanitize(p), null, 2),
-    );
+    const json = JSON.stringify(sanitize(p), null, 2);
+    void ensureProjectFolder(p.id, p.name)
+      .then((folder) => writeLocalFile(`${folder}/project.json`, json))
+      .catch(() => {});
   }
 }
 
@@ -214,7 +215,7 @@ export function saveProject(p: Project): void {
 export async function loadProjectFromDir(id: string): Promise<Project | null> {
   if (localDirStatus() !== "ready") return null;
   try {
-    const file = await readLocalFile(projectJsonPath(id));
+    const file = await readProjectJson(id);
     if (!file) return null;
     const p = JSON.parse(await file.text()) as Project;
     return p?.id ? p : null;

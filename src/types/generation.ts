@@ -51,6 +51,12 @@ export interface GenerationRequest {
   /** Free-form params per model (duration, aspect ratio, camera...). */
   params?: Record<string, unknown>;
   /**
+   * Human-readable base name for the stored local file (local-first), e.g.
+   * "mi-corto_escena-2-plano-3_keyframe". A short job suffix is appended for
+   * uniqueness across regenerations.
+   */
+  assetHint?: string;
+  /**
    * Set true by Claude when it has digested & prepared the request and wants the
    * heavy/deterministic execution handed off to the API (mode 3). Claude-decided,
    * per case — never automatic.

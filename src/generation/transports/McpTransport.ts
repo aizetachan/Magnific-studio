@@ -134,8 +134,11 @@ export class McpTransport implements GenerationTransport {
       if (last.status === "ready") {
         // Local-first: pull the bytes ONCE from the one-shot proxy and store
         // them on the user's machine; the app uses the returned blob: URL.
+        const assetName = req.assetHint
+          ? `${req.assetHint}_${started.jobId.slice(-6)}`
+          : started.jobId;
         const localUrl = last.resultUrl
-          ? await materializeAsset(started.jobId, absDirectorUrl(last.resultUrl))
+          ? await materializeAsset(assetName, absDirectorUrl(last.resultUrl))
           : undefined;
         onProgress?.({ progress: 100, status: "ready" });
         return {

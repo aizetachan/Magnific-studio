@@ -16,6 +16,17 @@ import { localDirStatus, readLocalFile, writeLocalFile } from "./localdir";
 
 const LOCAL_PREFIX = "local:";
 
+/** Filesystem/URL-safe slug for human-readable asset names. */
+export function slugify(s: string): string {
+  return s
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 80);
+}
+
 // ref ("local:assets/x.png") <-> runtime object URL, both directions.
 const urlByRef = new Map<string, string>();
 const refByUrl = new Map<string, string>();
@@ -112,7 +123,8 @@ export async function storeAssetBlob(
   fallbackExt = ".bin",
 ): Promise<string> {
   const ext = extForType(blob.type) || fallbackExt;
-  const path = `assets/${name}${ext}`;
+  const safe = name.replace(/[\\/:*?"<>|]/g, "-");
+  const path = `assets/${safe}${ext}`;
   await persistBlob(path, blob).catch(() => {});
   return register(`${LOCAL_PREFIX}${path}`, blob);
 }

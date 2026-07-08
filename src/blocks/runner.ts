@@ -2,7 +2,7 @@ import type { GenerationKind, GenerationRequest } from "@/types/generation";
 import type { Job, PhaseId, Project, Shot } from "@/types/project";
 import type { GenerationBlock } from "@/generation/GenerationBlock";
 import { config } from "@/config";
-import { materializeAsset } from "@/state/assets";
+import { materializeAsset, slugify } from "@/state/assets";
 import { absDirectorUrl } from "@/generation/transports/McpTransport";
 import { characterSheetPrompt, environmentGridPrompt } from "@/director/generate";
 
@@ -150,6 +150,8 @@ export async function runShotGeneration(
     scopeLabel: opts.scopeLabel,
     preparedForApi: opts.preparedForApi,
     params: Object.keys(params).length ? params : undefined,
+    // Human-readable local filename: "mi-corto_escena-2-plano-3_keyframe_..."
+    assetHint: `${slugify(project.name)}_${slugify(opts.scopeLabel)}_${opts.field}`,
   };
 
   const preflight = generation.preflight(req);
@@ -275,7 +277,13 @@ export async function runAudio(
 
   try {
     const result = await generation.generate(
-      { kind: "audio", prompt, model: opts?.model ?? "auto", params },
+      {
+        kind: "audio",
+        prompt,
+        model: opts?.model ?? "auto",
+        params,
+        assetHint: `${slugify(project.name)}_audio_${slugify(label)}`,
+      },
       ({ progress, status, jobId }) => {
         api.update((d) => {
           const j = d.audio?.find((x) => x.id === trackId)?.job;
@@ -345,7 +353,7 @@ async function generateOneAssetPreview(api: RunnerApi, assetId: string, styleTex
 
   let result;
   try {
-    result = await api.generation.generate({ kind: "image", prompt, model: "auto" }, ({ progress, status }) => {
+    result = await api.generation.generate({ kind: "image", prompt, model: "auto", assetHint: `${slugify(api.project.name)}_biblioteca_${slugify(asset.name)}_sheet` }, ({ progress, status }) => {
       api.update((d) => {
         const j = d.library?.find((x) => x.id === assetId)?.job;
         if (!j || j.status === "ready" || j.status === "failed") return;
@@ -437,7 +445,7 @@ export async function generateAssetSheet(api: RunnerApi, assetId: string): Promi
 
   let result;
   try {
-    result = await api.generation.generate({ kind: "image", prompt, model: "auto" }, ({ progress, status }) => {
+    result = await api.generation.generate({ kind: "image", prompt, model: "auto", assetHint: `${slugify(api.project.name)}_biblioteca_${slugify(asset.name)}_sheet` }, ({ progress, status }) => {
       api.update((d) => {
         const j = d.library?.find((x) => x.id === assetId)?.sheetJob;
         if (!j || j.status === "ready" || j.status === "failed") return;
@@ -542,8 +550,10 @@ async function resumePollAudio(api: RunnerApi, trackId: string, backendJobId: st
     }
     if (data.status === "ready") {
       // Local-first: store the bytes on the user's machine, use the blob: URL.
+      const rTrack = api.project.audio?.find((x) => x.id === trackId);
+      const hint = `${slugify(api.project.name)}_audio_${slugify(rTrack?.label ?? "pista")}_${backendJobId.slice(-6)}`;
       const localUrl = data.resultUrl
-        ? await materializeAsset(backendJobId, absDirectorUrl(data.resultUrl))
+        ? await materializeAsset(hint, absDirectorUrl(data.resultUrl))
         : undefined;
       api.update((d) => {
         const t = d.audio?.find((x) => x.id === trackId);
@@ -618,8 +628,12 @@ async function resumePoll(
 
     if (data.status === "ready") {
       // Local-first: store the bytes on the user's machine, use the blob: URL.
+      const proj = api.project;
+      const rShot = proj.shots.find((x) => x.id === shotId);
+      const rScene = proj.scenes.find((x) => x.id === rShot?.sceneId);
+      const hint = `${slugify(proj.name)}_escena-${rScene?.number ?? "x"}-plano-${rShot?.order ?? "x"}_${field}_${backendJobId.slice(-6)}`;
       const localUrl = data.resultUrl
-        ? await materializeAsset(backendJobId, absDirectorUrl(data.resultUrl))
+        ? await materializeAsset(hint, absDirectorUrl(data.resultUrl))
         : undefined;
       api.update((d) => {
         const s = d.shots.find((x) => x.id === shotId);
