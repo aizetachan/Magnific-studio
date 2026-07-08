@@ -149,7 +149,10 @@ code { background: var(--surface-2); border: 1px solid var(--border-1); border-r
 }
 .navitem:hover:not(:disabled) { background: var(--ghost-1); }
 .navitem--active { background: var(--ghost-2); }
-.navitem--locked { opacity: 0.4; }
+/* Locked: gray TEXT (not opacity) so it stays readable when also active. */
+.navitem--locked { color: var(--fg-4, #6b6f76); }
+.navitem--locked .navitem__icon { opacity: 0.6; }
+.navitem--active.navitem--locked { color: var(--fg-3, #8a8f97); }
 /* Icon wrapper: 32×32, always visible, NO colored background (matches the app). */
 .navitem__icon {
   width: 32px; height: 32px; border-radius: var(--radius-lg); display: grid; place-items: center;
