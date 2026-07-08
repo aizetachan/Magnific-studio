@@ -159,8 +159,9 @@ export function SettingsPage() {
                 }
               />
               <p className="muted small">
-                Se guarda solo en memoria de la sesión. Nunca se exporta ni se
-                hardcodea.
+                Se guarda solo en este navegador (nunca en nuestros servidores:
+                el navegador llama a Anthropic directamente). No se exporta con
+                los proyectos.
               </p>
               <label className="card__label">Modelo del director</label>
               <select

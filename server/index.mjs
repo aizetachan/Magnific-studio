@@ -54,7 +54,7 @@ import {
 } from "./mcpClient.mjs";
 import { cleanupDir, hasFfmpeg, renderTimeline } from "./render.mjs";
 import { verifyFirebaseIdToken } from "./firebaseAuth.mjs";
-import { firestoreStoreAvailable, fsGet, fsPut } from "./firestoreStore.mjs";
+import { firestoreStoreAvailable, fsDelete, fsGet, fsPut } from "./firestoreStore.mjs";
 import {
   buildGenerationCall,
   expectedSecFor,
@@ -147,6 +147,40 @@ function persistSessions() {
       console.warn("[director] firestore sessions persist failed:", e?.message ?? e),
     );
   }
+}
+
+// On-demand cross-instance sync: when a session/user lookup misses in memory,
+// pull the latest snapshot from Firestore (throttled). Only fills gaps — a
+// fresher local token is never overwritten by an older snapshot.
+let lastSessRefresh = 0;
+async function refreshSharedState() {
+  if (!firestoreStoreAvailable()) return;
+  const now = Date.now();
+  if (now - lastSessRefresh < 10_000) return;
+  lastSessRefresh = now;
+  try {
+    const [rawSessions, rawUsers] = await Promise.all([
+      fsGet("sessions").catch(() => null),
+      fsGet("users").catch(() => null),
+    ]);
+    if (rawSessions) {
+      const obj = decryptJson(rawSessions);
+      for (const [k, v] of Object.entries(obj)) if (!sessions.has(k)) sessions.set(k, v);
+    }
+    if (rawUsers) {
+      for (const [k, v] of Object.entries(JSON.parse(rawUsers))) {
+        if (!userBySid.has(k)) userBySid.set(k, v);
+      }
+    }
+  } catch {
+    /* best effort */
+  }
+}
+
+/** keyOf with a cross-instance fallback when the uid binding isn't local. */
+async function resolveKey(sid) {
+  if (sid && !userBySid.has(sid)) await refreshSharedState();
+  return keyOf(sid);
 }
 
 /** Restore server state from Firestore when the local disk came up empty. */
@@ -322,12 +356,25 @@ async function ensureClient(meta) {
       client_secret: process.env.MAGNIFIC_OAUTH_CLIENT_SECRET,
     };
   }
+  if (!clientReg && firestoreStoreAvailable()) {
+    // Multi-instance (Cloud Run): all instances must use the SAME OAuth
+    // client, or a code issued via instance A can't be exchanged by B.
+    try {
+      const shared = await fsGet("clientReg");
+      if (shared) clientReg = JSON.parse(shared);
+    } catch {
+      /* fall through to registering */
+    }
+  }
   if (!clientReg) {
     if (!meta.registration_endpoint) {
       throw new Error("no client_id and no registration_endpoint for DCR");
     }
     clientReg = await registerClient(meta.registration_endpoint, REDIRECT_URI);
     persistClientReg();
+    if (firestoreStoreAvailable()) {
+      void fsPut("clientReg", JSON.stringify(clientReg)).catch(() => {});
+    }
   }
   return clientReg;
 }
@@ -345,8 +392,12 @@ function storeTokens(sid, tok) {
 }
 /** Per-user access token, refreshed if expired. Falls back to the static env token. */
 async function tokenFor(sid) {
-  sid = keyOf(sid);
-  const s = sessions.get(sid);
+  sid = await resolveKey(sid);
+  let s = sessions.get(sid);
+  if (!s?.tokens?.access_token) {
+    await refreshSharedState();
+    s = sessions.get(sid);
+  }
   if (!s?.tokens?.access_token) return MCP_STATIC_TOKEN || undefined;
   const t = s.tokens;
   const expired = t.expires_at && Date.now() > t.expires_at - 30_000;
@@ -736,7 +787,11 @@ async function handle(req, res) {
   // OAuth: status
   if (req.method === "GET" && path === "/api/director/auth/status") {
     const sid = getCookie(req, "msid");
-    const tokens = sid ? sessions.get(keyOf(sid))?.tokens : undefined;
+    let tokens = sid ? sessions.get(await resolveKey(sid))?.tokens : undefined;
+    if (!tokens?.access_token && sid) {
+      await refreshSharedState();
+      tokens = sessions.get(keyOf(sid))?.tokens;
+    }
     return json(res, 200, {
       connected: !!tokens?.access_token,
       configured: !!MCP_URL,
@@ -756,6 +811,11 @@ async function handle(req, res) {
       const state = randomState();
       const { verifier, challenge } = pkce();
       pending.set(state, { sid, verifier });
+      // Cloud Run can route the callback to ANOTHER instance — share the
+      // in-flight PKCE state so any instance can complete the exchange.
+      if (firestoreStoreAvailable()) {
+        await fsPut(`pending_${state}`, JSON.stringify({ sid, verifier })).catch(() => {});
+      }
       const scope =
         OAUTH_ENV.SCOPE ?? (meta.scopes_supported ? meta.scopes_supported.join(" ") : undefined);
       const authUrl = authorizeUrl({
@@ -777,11 +837,21 @@ async function handle(req, res) {
   if (req.method === "GET" && path === "/api/director/auth/callback") {
     const code = url.searchParams.get("code");
     const state = url.searchParams.get("state");
-    const p = state ? pending.get(state) : undefined;
+    let p = state ? pending.get(state) : undefined;
+    if (!p && state && firestoreStoreAvailable()) {
+      // The login redirect may have been served by a different instance.
+      try {
+        const shared = await fsGet(`pending_${state}`);
+        if (shared) p = JSON.parse(shared);
+      } catch {
+        /* fall through to bad_callback */
+      }
+    }
     if (!code || !p) {
       return redirect(res, `${APP_ORIGIN}/?magnific=error&detail=bad_callback`);
     }
     pending.delete(state);
+    if (firestoreStoreAvailable()) void fsDelete(`pending_${state}`).catch(() => {});
     try {
       const meta = await ensureDiscovery();
       const client = await ensureClient(meta);

@@ -95,3 +95,13 @@ export async function fsGet(docId) {
   const d = await res.json();
   return d?.fields?.v?.stringValue ?? null;
 }
+
+/** Delete a value (missing docs are fine). */
+export async function fsDelete(docId) {
+  const token = await accessToken();
+  const res = await fetch(docUrl(docId), {
+    method: "DELETE",
+    headers: { authorization: `Bearer ${token}` },
+  });
+  if (!res.ok && res.status !== 404) throw new Error(`firestore delete ${res.status}`);
+}
