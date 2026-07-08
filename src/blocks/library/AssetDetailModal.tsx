@@ -205,7 +205,7 @@ export function AssetDetailModal({ assetId, onClose }: { assetId: string; onClos
 
   /** Generate a NEW image into the next free slot. */
   const generateNew = async () => {
-    const p = promptText.trim();
+    const p = (isStyle ? asset.prompt ?? "" : promptText).trim();
     if (!p || running) return;
     if (free === 0) {
       setNote("Ya tienes 6 imágenes (máximo). Elimina o sustituye alguna.");
@@ -246,7 +246,7 @@ export function AssetDetailModal({ assetId, onClose }: { assetId: string; onClos
 
   /** Edit the PRINCIPAL: img2img variation that REPLACES it (no new slot). */
   const editPrincipal = async () => {
-    const p = promptText.trim();
+    const p = (isStyle ? asset.prompt ?? "" : promptText).trim();
     if (!p || running) return;
     const refCreation = creations[0];
     if (!images[0]) {
@@ -499,13 +499,16 @@ export function AssetDetailModal({ assetId, onClose }: { assetId: string; onClos
           ))}
         </div>
 
-        {/* Prompt + actions */}
-        <textarea
-          className="amodal__prompt"
-          placeholder={isStyle ? "Describe una imagen de referencia del estilo…" : "Describe qué generar o cómo editar la principal…"}
-          value={promptText}
-          onChange={(e) => setPromptText(e.target.value)}
-        />
+        {/* Prompt + actions. For STYLE assets the definition below IS the
+            prompt (one single source), so the extra box is hidden. */}
+        {!isStyle ? (
+          <textarea
+            className="amodal__prompt"
+            placeholder="Describe qué generar o cómo editar la principal…"
+            value={promptText}
+            onChange={(e) => setPromptText(e.target.value)}
+          />
+        ) : null}
         <div className="amodal__actions">
           <button className="action action--primary" disabled={!!busy || running || free === 0} onClick={() => void generateNew()}>
             <IconSparkles size={15} /> {busy === "gen" ? "Generando…" : "Generar"}
@@ -535,7 +538,7 @@ export function AssetDetailModal({ assetId, onClose }: { assetId: string; onClos
         {/* Style: definition text + activate */}
         {isStyle ? (
           <div className="amodal__style">
-            <label className="card__label">Definición del estilo (se aplica a TODAS las imágenes)</label>
+            <label className="card__label">Definición del estilo (se aplica a TODAS las generaciones; Generar crea una imagen de referencia a partir de ella)</label>
             <textarea
               className="kf__prompt"
               value={asset.prompt ?? ""}
