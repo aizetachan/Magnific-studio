@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   IconBrush,
+  IconWand,
   IconCheck,
   IconInfoCircle,
   IconLayoutGrid,
@@ -13,6 +14,7 @@ import type { Job, LibraryAsset } from "@/types/project";
 import { useStore } from "@/state/ProjectStore";
 import { config } from "@/config";
 import { loadLocalBlob, loadProjectAssetBlob, storeAssetBlob } from "@/state/assets";
+import { deriveStyleGuidelines } from "@/director/vision";
 
 /**
  * Asset detail modal — EVERYTHING about a library asset happens here:
@@ -25,9 +27,10 @@ import { loadLocalBlob, loadProjectAssetBlob, storeAssetBlob } from "@/state/ass
 
 const MAX_IMAGES = 6;
 
-const MCP_TYPE: Record<"character" | "location", "character" | "locations"> = {
+const MCP_TYPE: Record<string, string> = {
   character: "character",
   location: "locations",
+  style: "style",
 };
 
 function jobAt(status: Job["status"], patch: Partial<Job> = {}): Job {
@@ -140,7 +143,6 @@ export function AssetDetailModal({ assetId, onClose }: { assetId: string; onClos
    * its numeric id, create it otherwise. Fire-and-forget; style is local. */
   const syncMagnific = async () => {
     const a = storeRef.current.library?.find((x) => x.id === assetId) ?? asset;
-    if (a.type === "style") return;
     const ids = (a.creationIds ?? []).filter(Boolean).slice(0, MAX_IMAGES);
     if (ids.length === 0) return;
     const imagesPayload = ids.map((creationIdentifier) => ({ creationIdentifier }));
@@ -159,7 +161,7 @@ export function AssetDetailModal({ assetId, onClose }: { assetId: string; onClos
           headers: { "content-type": "application/json" },
           body: JSON.stringify({
             name: a.name,
-            type: MCP_TYPE[a.type as "character" | "location"],
+            type: MCP_TYPE[a.type] ?? a.type,
             description: a.description || a.prompt || undefined,
             images: imagesPayload,
           }),
@@ -172,6 +174,8 @@ export function AssetDetailModal({ assetId, onClose }: { assetId: string; onClos
           });
         } else if (data.needsMagnific) {
           setNote("Conecta Magnific en Ajustes para usar estas imágenes como referencia en generaciones.");
+        } else if (a.type === "style") {
+          setNote("Magnific aún no permite crear estilos desde la API. Crea el estilo en magnific.com e impórtalo con 'Importar de tu cuenta'.");
         }
       }
     } catch {
@@ -187,10 +191,14 @@ export function AssetDetailModal({ assetId, onClose }: { assetId: string; onClos
         prompt: p,
         model: "auto",
         assetHint: `biblioteca_${asset.name}_${label}`,
-        libraryRefs:
-          !isStyle && asset.magnificIdentifier
-            ? [{ type: asset.type === "location" ? ("locations" as const) : ("character" as const), identifier: asset.magnificIdentifier }]
-            : undefined,
+        libraryRefs: asset.magnificIdentifier
+          ? [
+              {
+                type: asset.type === "location" ? ("locations" as const) : asset.type === "style" ? ("style" as const) : ("character" as const),
+                identifier: asset.magnificIdentifier,
+              },
+            ]
+          : undefined,
       },
       ({ progress, status }) => {
         mutate((a) => {
@@ -428,6 +436,44 @@ export function AssetDetailModal({ assetId, onClose }: { assetId: string; onClos
 
   const styleActive = isStyle && project.styleId === assetId;
 
+  /** STYLE: Claude/GPT looks at the moodboard and WRITES the definition. */
+  const deriveGuidelines = async () => {
+    if (busy) return;
+    setBusy("derive");
+    setNote(null);
+    try {
+      const blobs: Array<{ base64: string; mime: string }> = [];
+      for (const ref of images.slice(0, 4)) {
+        let blob: Blob | null = null;
+        if (ref.startsWith("local:")) {
+          blob = (await loadLocalBlob(ref)) ?? (await loadProjectAssetBlob(project.id, ref.slice("local:".length)));
+        } else {
+          blob = await fetch(ref).then((r) => (r.ok ? r.blob() : null)).catch(() => null);
+        }
+        if (!blob) continue;
+        const b64 = await new Promise<string>((resolve, reject) => {
+          const r = new FileReader();
+          r.onload = () => resolve(String(r.result).split(",")[1] ?? "");
+          r.onerror = () => reject(new Error("read"));
+          r.readAsDataURL(blob!);
+        });
+        blobs.push({ base64: b64, mime: blob.type || "image/png" });
+      }
+      const st = project.settings;
+      const text = await deriveStyleGuidelines({
+        provider: st.directorProvider === "openai" ? "openai" : "anthropic",
+        apiKey: st.directorProvider === "openai" ? (st.openaiApiKey ?? "") : st.anthropicApiKey,
+        model: st.directorProvider === "openai" ? (st.openaiModel ?? "gpt-5") : st.directorModel,
+        images: blobs,
+      });
+      if (text) mutate((a) => (a.prompt = text));
+    } catch (e) {
+      setNote(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(null);
+    }
+  };
+
   return (
     <div className="detail-modal" role="dialog" aria-modal="true" onClick={onClose}>
       <div className="detail-modal__panel amodal" onClick={(e) => e.stopPropagation()}>
@@ -526,7 +572,7 @@ export function AssetDetailModal({ assetId, onClose }: { assetId: string; onClos
             </button>
           ) : null}
           <span className="amodal__count muted small">{images.length}/{MAX_IMAGES}</span>
-          {!isStyle && asset.magnificIdentifier ? (
+          {asset.magnificIdentifier ? (
             <span className="asset-card__ok"><IconCheck size={13} /> en biblioteca</span>
           ) : null}
         </div>
@@ -544,9 +590,16 @@ export function AssetDetailModal({ assetId, onClose }: { assetId: string; onClos
               value={asset.prompt ?? ""}
               onChange={(e) => mutate((a) => (a.prompt = e.target.value))}
             />
-            <button className={`action ${styleActive ? "is-on" : "action--primary"}`} onClick={() => update((d) => { d.styleId = styleActive ? undefined : assetId; })}>
-              {styleActive ? (<><IconCheck size={14} /> Estilo activo</>) : "Usar como estilo global"}
-            </button>
+            <div className="kf__row">
+              <button className={`action ${styleActive ? "is-on" : "action--primary"}`} onClick={() => update((d) => { d.styleId = styleActive ? undefined : assetId; })}>
+                {styleActive ? (<><IconCheck size={14} /> Estilo activo</>) : "Usar como estilo global"}
+              </button>
+              {images.length > 0 ? (
+                <button className="action" disabled={!!busy} onClick={() => void deriveGuidelines()} title="Claude analiza el moodboard y escribe la definición">
+                  <IconWand size={15} /> {busy === "derive" ? "Analizando…" : "Derivar directrices de las imágenes"}
+                </button>
+              ) : null}
+            </div>
           </div>
         ) : null}
 
