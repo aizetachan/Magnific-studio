@@ -27,10 +27,15 @@ const MCP_TYPE: Record<"character" | "location", string> = {
 export function LibraryPage({ focusAssetId }: { focusAssetId?: string | null }) {
   const { project, update } = useStore();
   const [openAsset, setOpenAsset] = useState<string | null>(null);
+  const [tab, setTab] = useState<GroupType>("character");
 
-  // Deep link (e.g. from casting): open the asset's modal directly.
+  // Deep link (e.g. from casting): switch to the asset's tab and open its modal.
   useEffect(() => {
-    if (focusAssetId) setOpenAsset(focusAssetId);
+    if (!focusAssetId) return;
+    const a = (project.library ?? []).find((x) => x.id === focusAssetId);
+    if (a) setTab(a.type === "location" ? "location" : a.type === "style" ? "style" : "character");
+    setOpenAsset(focusAssetId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focusAssetId]);
 
   // Import existing assets from the user's Magnific account, per group.
@@ -91,7 +96,18 @@ export function LibraryPage({ focusAssetId }: { focusAssetId?: string | null }) 
 
   return (
     <div className="librarypage">
-      {GROUPS.map((g) => {
+      <div className="seg librarypage__tabs">
+        {GROUPS.map((g) => (
+          <button
+            key={g.type}
+            className={`seg__btn ${tab === g.type ? "is-on" : ""}`}
+            onClick={() => setTab(g.type)}
+          >
+            {g.label}
+          </button>
+        ))}
+      </div>
+      {GROUPS.filter((g) => g.type === tab).map((g) => {
         const assets = (project.library ?? []).filter((a) => a.type === g.type);
         return (
           <section className="librarypage__group" key={g.type}>

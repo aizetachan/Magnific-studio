@@ -1424,7 +1424,10 @@ code { background: var(--surface-2); border: 1px solid var(--border-1); border-r
 .librarypage__grouphead .mini { display: inline-flex; align-items: center; gap: 5px; }
 .librarypage__import { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
 .librarypage__card { text-align: left; padding: 0; cursor: pointer; background: none; border: none; color: inherit; font: inherit; }
-.librarypage__card .dlib__img { position: relative; }
+.librarypage__card .dlib__img { position: relative; aspect-ratio: 1; overflow: hidden; }
+.librarypage__card .dlib__img > img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.librarypage__card .dlib__img--empty { width: 100%; height: 100%; }
+.librarypage__tabs { margin-bottom: 4px; }
 .librarypage__count {
   position: absolute; top: 8px; right: 8px; font-size: 11px; font-weight: 700;
   padding: 3px 8px; border-radius: 999px; background: rgba(10, 10, 14, 0.72);
