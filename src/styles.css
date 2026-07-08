@@ -772,7 +772,15 @@ code { background: var(--surface-2); border: 1px solid var(--border-1); border-r
   display: flex; gap: 8px; align-items: center; background: var(--panel-4);
   border: 1px solid var(--border-1); border-radius: var(--radius-2xl); padding: 8px;
   box-shadow: 0 12px 40px rgba(0,0,0,0.5);
-  transition: border-color 360ms ease, background 360ms ease, box-shadow 360ms ease;
+  /* Anchored right so collapsing shrinks TOWARD the chair button. The chair
+     itself is absolutely pinned so it never moves while the pill collapses. */
+  width: 100%; max-width: 100%; margin-left: auto; overflow: hidden;
+  position: relative; padding-right: 54px;
+  /* OPENING (destination = this state): pill fades in first, then expands
+     left, then the content fades in. */
+  transition:
+    background 160ms ease, border-color 160ms ease, box-shadow 160ms ease,
+    max-width 380ms cubic-bezier(0.22, 0.8, 0.3, 1) 80ms;
 }
 .director__bar:hover { border-color: var(--border-2); background: var(--panel-6); }
 .director__scope { font-size: 12px; font-weight: 500; color: var(--primary-0); background: var(--accent-soft); border-radius: 999px; padding: 5px 12px; white-space: nowrap; }
@@ -793,18 +801,31 @@ code { background: var(--surface-2); border: 1px solid var(--border-1); border-r
 .director__bar > input,
 .director__bar > .director__go,
 .director__bar > .director__panel-toggle {
-  transition: opacity 360ms ease;
+  /* OPENING: content appears once the bar has expanded. */
+  transition: opacity 200ms ease 360ms;
+  white-space: nowrap;
 }
 .director__bar--collapsed {
   background: transparent; border-color: transparent; box-shadow: none; pointer-events: none;
+  /* CLOSING (destination = this state): content fades, then the bar slides
+     shut toward the chair, and the pill fades away just before reaching it. */
+  max-width: 54px;
+  transition:
+    max-width 380ms cubic-bezier(0.6, 0, 0.75, 0.4) 120ms,
+    background 180ms ease 360ms, border-color 180ms ease 360ms, box-shadow 180ms ease 360ms;
 }
 .director__bar--collapsed > .director__scope,
 .director__bar--collapsed > input,
 .director__bar--collapsed > .director__go,
 .director__bar--collapsed > .director__panel-toggle {
+  /* CLOSING: content vanishes FIRST (no delay). */
+  transition: opacity 160ms ease;
   opacity: 0; pointer-events: none;
 }
-.director__chair { transition: background 360ms ease, border-color 360ms ease, color 360ms ease; }
+.director__chair {
+  position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+  transition: background 360ms ease, border-color 360ms ease, color 360ms ease;
+}
 .director__bar--collapsed .director__chair { background: var(--primary-0); border-color: var(--primary-0); color: #fafafa; pointer-events: auto; }
 .director__bar--collapsed .director__chair:hover { background: var(--primary-1); border-color: var(--primary-1); }
 .director__reply {
