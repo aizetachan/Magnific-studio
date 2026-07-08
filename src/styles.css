@@ -1287,9 +1287,15 @@ code { background: var(--surface-2); border: 1px solid var(--border-1); border-r
   .home__tools { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
   .home__tool-ic { width: 100%; aspect-ratio: 1; height: auto; }
 
-  /* Recents: horizontal carousel. */
+  /* Dashboard: the desktop inner padding is gone on mobile (the scroll
+     container's 16px is the only gutter). */
+  .home__dash { padding: 0; }
+
+  /* Recents: full-bleed horizontal carousel; cards run off-screen instead
+     of clipping at the gutter. */
   .home__recents {
-    display: flex; overflow-x: auto; gap: 12px; padding-bottom: 6px;
+    display: flex; overflow-x: auto; gap: 12px;
+    margin: 0 -16px; padding: 0 16px 6px;
     scroll-snap-type: x mandatory;
   }
   .home__recents .pcard { flex: 0 0 72%; scroll-snap-align: start; }
