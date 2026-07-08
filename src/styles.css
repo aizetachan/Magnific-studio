@@ -1209,7 +1209,6 @@ code { background: var(--surface-2); border: 1px solid var(--border-1); border-r
 .skel { display: flex; flex-direction: column; gap: 16px; }
 .skel__bar {
   display: block; border-radius: 6px; background: var(--ghost-1);
-  animation: skel-pulse 2s ease-in-out infinite;
 }
 .skel__tag {
   font-size: 11px; font-weight: 700; letter-spacing: 0.04em; color: var(--fg-3, #888);
@@ -1232,7 +1231,6 @@ code { background: var(--surface-2); border: 1px solid var(--border-1); border-r
   aspect-ratio: 16 / 9; display: grid; place-items: center;
   background: var(--panel-6); color: var(--fg-4, #666);
   border-bottom: 1px dashed var(--border-1);
-  animation: skel-pulse 2s ease-in-out infinite;
 }
 .skel__shotbody { display: flex; flex-direction: column; gap: 8px; padding: 12px; }
 .skel__actions { display: flex; gap: 8px; margin-top: 4px; }
@@ -1240,7 +1238,7 @@ code { background: var(--surface-2); border: 1px solid var(--border-1); border-r
 .skel__player {
   aspect-ratio: 16 / 9; max-height: 320px; display: grid; place-items: center;
   border-radius: 14px; background: var(--panel-6); color: var(--fg-4, #666);
-  border: 1px dashed var(--border-1); animation: skel-pulse 2s ease-in-out infinite;
+  border: 1px dashed var(--border-1);
 }
 .skel__timeline { display: flex; flex-direction: column; gap: 8px; }
 .skel__track {
@@ -1249,4 +1247,3 @@ code { background: var(--surface-2); border: 1px solid var(--border-1); border-r
 }
 .skel__clip { height: 26px; border-radius: 6px; background: var(--ghost-1); }
 .skel__clip--audio { background: color-mix(in srgb, var(--emphasis-0, #ff58ae) 22%, var(--ghost-1)); }
-@keyframes skel-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
