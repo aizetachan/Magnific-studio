@@ -10,6 +10,7 @@ import {
   supportsLocalDir,
 } from "@/state/localdir";
 import { OnboardingToast } from "@/components/OnboardingToast";
+import { useI18n } from "@/i18n";
 
 /**
  * Local-first storage gate (§Fase 0). On first visit in a supported browser
@@ -35,6 +36,7 @@ function getChoice(): Choice | null {
 export function WorkdirGate() {
   const [status, setStatus] = useState(localDirStatus());
   const [choice, setChoice] = useState<Choice | null>(getChoice());
+  const { t } = useI18n();
 
   useEffect(() => {
     void initLocalDir().then(() => setStatus(localDirStatus()));
@@ -78,25 +80,15 @@ export function WorkdirGate() {
     return (
       <div className="detail-modal" role="dialog" aria-modal="true">
         <div className="detail-modal__panel confirm-modal">
-          <h3 className="confirm-modal__title">¿Dónde guardamos tu trabajo?</h3>
+          <h3 className="confirm-modal__title">{t("workdir.title")}</h3>
           <div className="confirm-modal__msg">
-            <p>
-              Tu contenido (proyectos, imágenes y vídeos generados) se guarda{" "}
-              <b>solo en tu máquina</b>, nunca en nuestros servidores.
-            </p>
-            <p>
-              Recomendado: elige una carpeta de trabajo y todo se guardará ahí
-              automáticamente.
-            </p>
-            <p className="muted small">
-              Al elegirla, tu navegador te pedirá confirmación para editar
-              archivos en esa carpeta — pulsa «Permitir». Ese aviso es del
-              navegador y es tu garantía de control sobre la carpeta.
-            </p>
+            <p>{t("workdir.body1")}</p>
+            <p>{t("workdir.body2")}</p>
+            <p className="muted small">{t("workdir.browserHint")}</p>
           </div>
           <div className="confirm-modal__actions">
             <button className="action" onClick={() => commit("browser")}>
-              Solo en este navegador
+              {t("workdir.browserOnly")}
             </button>
             <button
               className="action action--gen"
@@ -104,7 +96,7 @@ export function WorkdirGate() {
                 if (await pickDirectory()) commit("folder");
               }}
             >
-              <IconFolderOpen size={16} /> Elegir carpeta
+              <IconFolderOpen size={16} /> {t("workdir.pick")}
             </button>
           </div>
         </div>
@@ -118,15 +110,14 @@ export function WorkdirGate() {
       <div className="conn-banner" role="status">
         <IconFolder size={16} />
         <span>
-          Reconecta tu carpeta de trabajo{" "}
-          {localDirName() ? <b>«{localDirName()}»</b> : null} para seguir
-          guardando en tu máquina.
+          {t("workdir.reconnect")}{" "}
+          {localDirName() ? <b>«{localDirName()}»</b> : null}
         </span>
         <button
           className="conn-banner__cta"
           onClick={() => void requestAccess()}
         >
-          Reconectar carpeta
+          {t("workdir.reconnectCta")}
         </button>
       </div>
     );
@@ -137,12 +128,12 @@ export function WorkdirGate() {
     return (
       <div className="conn-banner" role="status">
         <IconFolder size={16} />
-        <span>Elige tu carpeta de trabajo para guardar en tu máquina.</span>
+        <span>{t("workdir.pickCta")}</span>
         <button
           className="conn-banner__cta"
           onClick={() => void pickDirectory()}
         >
-          Elegir carpeta
+          {t("workdir.pick")}
         </button>
       </div>
     );
@@ -152,9 +143,7 @@ export function WorkdirGate() {
   if (fallback) {
     return (
       <OnboardingToast storageKey="magnific-studio:onboard-fallback-save">
-        Tu trabajo se guarda solo en este navegador. Antes de cerrar, usa{" "}
-        <b>Exportar</b> (ZIP) para llevarte una copia — te avisaremos si cierras
-        con cambios sin exportar.
+        {t("workdir.fallbackToast")}
       </OnboardingToast>
     );
   }

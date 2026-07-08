@@ -20,6 +20,7 @@ import { useCredentials, setCredentials } from "@/state/credentials";
 import { AnthropicClient } from "@/director/AnthropicClient";
 import { config } from "@/config";
 import { consumeSettingsTarget } from "@/components/AppAlert";
+import { setLang, useI18n, type TKey } from "@/i18n";
 import {
   PHASE_LABELS,
   creditsByPhase,
@@ -34,20 +35,20 @@ type Sec =
   | "uso"
   | "team" | "people" | "apikeys" | "sso" | "billing";
 
-const NAV: { group: string; items: { id: Sec; label: string; icon: ComponentType<IconProps>; mock?: boolean }[] }[] = [
-  { group: "Cuenta", items: [
-    { id: "perfil", label: "Perfil", icon: IconUser, mock: true },
-    { id: "prefs", label: "Preferencias", icon: IconAdjustmentsHorizontal, mock: true },
-    { id: "seguridad", label: "Seguridad", icon: IconLock, mock: true },
+const NAV: { group: TKey; items: { id: Sec; label: string; labelKey?: TKey; icon: ComponentType<IconProps>; mock?: boolean }[] }[] = [
+  { group: "settings.group.account", items: [
+    { id: "perfil", label: "Perfil", labelKey: "settings.nav.profile", icon: IconUser, mock: true },
+    { id: "prefs", label: "Preferencias", labelKey: "settings.nav.prefs", icon: IconAdjustmentsHorizontal },
+    { id: "seguridad", label: "Seguridad", labelKey: "settings.nav.security", icon: IconLock, mock: true },
   ]},
-  { group: "Conexiones", items: [
-    { id: "claude", label: "Claude (API)", icon: IconSparkles },
-    { id: "magnific", label: "Magnific (MCP)", icon: IconBolt },
+  { group: "settings.group.connections", items: [
+    { id: "claude", label: "Claude (API)", labelKey: "settings.nav.claude", icon: IconSparkles },
+    { id: "magnific", label: "Magnific (MCP)", labelKey: "settings.nav.magnific", icon: IconBolt },
   ]},
-  { group: "Uso", items: [
-    { id: "uso", label: "Consumo", icon: IconChartBar },
+  { group: "settings.group.usage", items: [
+    { id: "uso", label: "Consumo", labelKey: "settings.nav.usage", icon: IconChartBar },
   ]},
-  { group: "Organización", items: [
+  { group: "settings.group.org", items: [
     { id: "team", label: "My Team", icon: IconBuildingSkyscraper, mock: true },
     { id: "people", label: "People", icon: IconUsers, mock: true },
     { id: "apikeys", label: "API Keys", icon: IconCode, mock: true },
@@ -66,6 +67,7 @@ const SEC_LABEL: Record<Sec, string> = Object.fromEntries(
  */
 export function SettingsPage() {
   const { project } = useStore();
+  const { lang, t: tr } = useI18n();
   // Anthropic key / model / status are GLOBAL (shared by every project), so
   // connecting here works in any project opened in the Studio.
   const creds = useCredentials();
@@ -124,7 +126,7 @@ export function SettingsPage() {
         <aside className="settings__nav">
           {NAV.map((g) => (
             <div className="settings__group" key={g.group}>
-              <div className="settings__grouplabel">{g.group}</div>
+              <div className="settings__grouplabel">{tr(g.group)}</div>
               {g.items.map((it) => {
                 const Icon = it.icon;
                 return (
@@ -134,7 +136,7 @@ export function SettingsPage() {
                     onClick={() => setSection(it.id)}
                   >
                     <Icon size={16} />
-                    <span>{it.label}</span>
+                    <span>{it.labelKey ? tr(it.labelKey) : it.label}</span>
                     {it.mock ? <span className="settings__soon">pronto</span> : null}
                   </button>
                 );
@@ -144,12 +146,27 @@ export function SettingsPage() {
         </aside>
 
         <div className="settings__body">
-          <h1 className="settings__title">{SEC_LABEL[section]}</h1>
+          <h1 className="settings__title">{(() => { const it = NAV.flatMap((g) => g.items).find((i) => i.id === section); return it?.labelKey ? tr(it.labelKey) : SEC_LABEL[section]; })()}</h1>
+
+          {/* ---------- Cuenta · Preferencias (real: idioma) ---------- */}
+          {section === "prefs" ? (
+            <div className="card">
+              <label className="card__label">{tr("settings.prefs.lang")}</label>
+              <select
+                value={lang}
+                onChange={(e) => setLang(e.target.value as "en" | "es")}
+              >
+                <option value="en">{tr("settings.lang.en")}</option>
+                <option value="es">{tr("settings.lang.es")}</option>
+              </select>
+              <p className="muted small">{tr("settings.prefs.langHelp")}</p>
+            </div>
+          ) : null}
 
           {/* ---------- Conexiones · Claude (real) ---------- */}
           {section === "claude" ? (
             <div className="card">
-              <label className="card__label">API de Anthropic (Claude)</label>
+              <label className="card__label">{tr("settings.apiKeyLabel")}</label>
               <input
                 type="password"
                 placeholder="sk-ant-..."
@@ -159,19 +176,17 @@ export function SettingsPage() {
                 }
               />
               <p className="muted small">
-                Se guarda solo en este navegador (nunca en nuestros servidores:
-                el navegador llama a Anthropic directamente). No se exporta con
-                los proyectos.{" "}
+                {tr("settings.apiHelp")}{" "}
                 <a
                   className="settings-help-link"
                   href="https://platform.claude.com/settings/workspaces/default/keys"
                   target="_blank"
                   rel="noreferrer"
                 >
-                  ¿Dónde encontrarla?
+                  {tr("settings.apiWhere")}
                 </a>
               </p>
-              <label className="card__label">Modelo del director</label>
+              <label className="card__label">{tr("settings.model")}</label>
               <select
                 value={creds.directorModel}
                 onChange={(e) => setCredentials({ directorModel: e.target.value })}
@@ -187,21 +202,21 @@ export function SettingsPage() {
                   className={`conn conn--${testing ? "untested" : creds.connectionTested}`}
                 >
                   {testing ? (
-                    "Validando…"
+                    tr("settings.testing")
                   ) : creds.connectionTested === "ok" ? (
                     <>
-                      <IconCheck size={14} /> Claude conectado
+                      <IconCheck size={14} /> {tr("settings.connected")}
                     </>
                   ) : creds.connectionTested === "failed" ? (
                     <>
-                      <IconX size={14} /> Sin conexión
+                      <IconX size={14} /> {tr("settings.noConn")}
                     </>
                   ) : (
-                    "Sin probar"
+                    tr("settings.untested")
                   )}
                 </span>
                 <button className="action action--gen" disabled={testing} onClick={testConnection}>
-                  {testing ? "Probando…" : "Comprobar conexión"}
+                  {testing ? tr("settings.testing") : tr("settings.testConn")}
                 </button>
               </div>
               {connError && creds.connectionTested === "failed" ? (

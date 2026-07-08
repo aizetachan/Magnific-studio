@@ -1,5 +1,6 @@
 import type { PageContext } from "@/types/pipeline";
 import { config } from "@/config";
+import { getLang } from "@/i18n";
 
 /**
  * Thin client over the Anthropic Messages API (/v1/messages).
@@ -65,6 +66,9 @@ export function buildSystemPrompt(ctx: PageContext): string {
     "- Si te piden algo fuera de fase (una acción bloqueada), NO lo ejecutes: redirige con suavidad",
     "  indicando en qué fase se hace y qué falta para llegar.",
     "- Sé conciso. No generas imágenes ni vídeo tú mismo: eso lo ejecuta la capa de generación de Magnific.",
+    getLang() === "en"
+      ? "- IMPORTANT: The user's interface language is ENGLISH — always reply in English."
+      : "- IMPORTANTE: El idioma de la interfaz del usuario es ESPAÑOL — responde siempre en español.",
   ].join("\n");
 }
 

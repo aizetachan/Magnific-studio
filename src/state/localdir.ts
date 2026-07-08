@@ -338,6 +338,14 @@ export async function resolveContentPath(path: string): Promise<string> {
   return `${await folderFor(activeProjectId)}/${path}`;
 }
 
+/** Same, for an EXPLICIT project (dashboard library browses inactive files). */
+export async function projectContentPath(
+  projectId: string,
+  path: string,
+): Promise<string> {
+  return `${await folderFor(projectId)}/${path}`;
+}
+
 /**
  * Make sure the project's folder exists and matches its (sanitized) name;
  * renames the folder when the project was renamed, moving project.json AND

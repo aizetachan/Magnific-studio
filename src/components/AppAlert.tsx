@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { IconAlertTriangle, IconPlugConnected } from "@tabler/icons-react";
+import { useI18n } from "@/i18n";
 
 /**
  * In-app replacement for the browser's native alert(): a platform-styled
@@ -52,6 +53,7 @@ const NEEDS_API = (msg: string) =>
 
 export function AppAlert() {
   const [message, setMessage] = useState<string | null>(null);
+  const { t } = useI18n();
 
   useEffect(() => {
     const onAlert = (e: Event) => {
@@ -70,20 +72,17 @@ export function AppAlert() {
       <div className="detail-modal__panel confirm-modal" onClick={(e) => e.stopPropagation()}>
         <h3 className="confirm-modal__title">
           <IconAlertTriangle size={18} style={{ verticalAlign: "-3px" }} />{" "}
-          {needsApi ? "Falta conectar Claude" : "Aviso"}
+          {needsApi ? t("alert.needApiTitle") : t("alert.title")}
         </h3>
         <div className="confirm-modal__msg">
           <p>{message}</p>
           {needsApi ? (
-            <p className="muted small">
-              El Director usa tu propia API key de Anthropic. Se guarda solo en
-              tu sesión y nunca sale de tu navegador.
-            </p>
+            <p className="muted small">{t("alert.needApiBody")}</p>
           ) : null}
         </div>
         <div className="confirm-modal__actions">
           <button className="action" onClick={() => setMessage(null)}>
-            Cerrar
+            {t("alert.close")}
           </button>
           {needsApi ? (
             <button
@@ -93,7 +92,7 @@ export function AppAlert() {
                 openSettingsApi();
               }}
             >
-              <IconPlugConnected size={15} /> Conectar API de Claude
+              <IconPlugConnected size={15} /> {t("alert.connectApi")}
             </button>
           ) : null}
         </div>

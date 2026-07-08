@@ -14,6 +14,7 @@
 
 import {
   localDirStatus,
+  projectContentPath,
   readLocalFile,
   resolveContentPath,
   writeLocalFile,
@@ -159,6 +160,28 @@ export async function materializeAsset(
     return await storeAssetBlob(name, blob, fallbackExt);
   } catch {
     return srcUrl;
+  }
+}
+
+/** Read a blob for a SPECIFIC project (dashboard library viewer): project
+ * folder first, then legacy shared-root path, then IndexedDB. */
+export async function loadProjectAssetBlob(
+  projectId: string,
+  refPath: string,
+): Promise<Blob | null> {
+  const path = refPath.startsWith(LOCAL_PREFIX)
+    ? refPath.slice(LOCAL_PREFIX.length)
+    : refPath;
+  if (localDirStatus() === "ready") {
+    const f = await readLocalFile(await projectContentPath(projectId, path));
+    if (f) return f;
+    const legacy = await readLocalFile(path);
+    if (legacy) return legacy;
+  }
+  try {
+    return await idbGetBlob(path);
+  } catch {
+    return null;
   }
 }
 

@@ -5,6 +5,7 @@ import { createBlankProject } from "@/state/seed";
 import { saveProject } from "@/state/persistence";
 import { me, shareEnabled } from "./db";
 import { acceptInvite, declineInvite, myInvites, type Invite } from "./invites";
+import { useI18n } from "@/i18n";
 
 /**
  * Pending share invitations — the "notification" the invitee sees on entry.
@@ -14,6 +15,7 @@ import { acceptInvite, declineInvite, myInvites, type Invite } from "./invites";
 export function ShareInbox() {
   const { switchProject } = useStore();
   const [invites, setInvites] = useState<Invite[]>([]);
+  const { t } = useI18n();
   useEffect(() => {
     if (!shareEnabled || !me()) return;
     void myInvites().then(setInvites).catch(() => {});
@@ -34,12 +36,11 @@ export function ShareInbox() {
     <div className="conn-banner" role="status">
       <IconUsersGroup size={16} />
       <span>
-        <b>{invites[0].fromEmail}</b> ha compartido contigo{" "}
-        <b>«{invites[0].projectName}»</b>. Al aceptar, lo que se genere se
-        guardará también en tu máquina.
+        <b>{invites[0].fromEmail}</b> {t("share.inboxFrom")}{" "}
+        <b>«{invites[0].projectName}»</b> {t("share.inboxNote")}
       </span>
       <button className="conn-banner__cta" onClick={() => void accept(invites[0])}>
-        Aceptar y abrir
+        {t("share.accept")}
       </button>
       <button
         className="conn-banner__cta"
@@ -48,7 +49,7 @@ export function ShareInbox() {
           setInvites((xs) => xs.slice(1));
         }}
       >
-        Rechazar
+        {t("share.decline")}
       </button>
     </div>
   );

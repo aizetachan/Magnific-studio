@@ -5,6 +5,7 @@ import { useStore } from "@/state/ProjectStore";
 import { me, shareEnabled } from "./db";
 import { sendInvite } from "./invites";
 import { getPresence, subscribePresence } from "./useShareSync";
+import { useI18n } from "@/i18n";
 
 function randomRoomId(): string {
   const bytes = new Uint8Array(16);
@@ -35,6 +36,7 @@ export function ShareControls() {
   const [open, setOpen] = useState(false);
   const [email, setEmail] = useState("");
   const [msg, setMsg] = useState<string | null>(null);
+  const { t } = useI18n();
   const user = me();
   if (!shareEnabled || !user) return null;
 
@@ -58,7 +60,7 @@ export function ShareControls() {
         toEmail: to,
       });
       setEmail("");
-      setMsg(`Invitación enviada a ${to}. La verá al entrar con su Google.`);
+      setMsg(t("share.invited", { email: to }));
     } catch (e) {
       setMsg(e instanceof Error ? e.message : String(e));
     }
@@ -69,7 +71,7 @@ export function ShareControls() {
       <PresenceAvatars />
       <button
         className="icon-btn"
-        title={project.share ? "Proyecto compartido — invitar a más gente" : "Compartir proyecto"}
+        title={project.share ? t("share.buttonShared") : t("share.button")}
         onClick={() => setOpen(true)}
       >
         <IconUsers size={16} />
@@ -77,13 +79,9 @@ export function ShareControls() {
       {open ? (
         <div className="detail-modal" role="dialog" aria-modal="true" onClick={() => setOpen(false)}>
           <div className="detail-modal__panel confirm-modal" onClick={(e) => e.stopPropagation()}>
-            <h3 className="confirm-modal__title">Compartir «{project.name}»</h3>
+            <h3 className="confirm-modal__title">{t("share.title")} «{project.name}»</h3>
             <div className="confirm-modal__msg">
-              <p className="muted small">
-                Trabajaréis en tiempo real mientras estéis conectados a la vez.
-                Todo lo que se genere se guarda en la máquina de cada uno; si un
-                campo está siendo editado, los demás lo verán bloqueado.
-              </p>
+              <p className="muted small">{t("share.lead")}</p>
               <div className="share-invite-row">
                 <input
                   type="email"
@@ -93,14 +91,14 @@ export function ShareControls() {
                   onKeyDown={(e) => e.key === "Enter" && void invite()}
                 />
                 <button className="action action--gen" onClick={() => void invite()}>
-                  <IconUserPlus size={15} /> Invitar
+                  <IconUserPlus size={15} /> {t("share.invite")}
                 </button>
               </div>
               {msg ? <p className="small muted">{msg}</p> : null}
             </div>
             <div className="confirm-modal__actions">
               <button className="action" onClick={() => setOpen(false)}>
-                <IconX size={14} /> Cerrar
+                <IconX size={14} /> {t("share.close")}
               </button>
             </div>
           </div>

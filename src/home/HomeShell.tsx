@@ -20,6 +20,8 @@ import {
 import { useStore } from "@/state/ProjectStore";
 import { PageHead } from "@/components/PageHead";
 import { SettingsPage } from "@/settings/SettingsPage";
+import { DashboardLibrary } from "@/home/DashboardLibrary";
+import { useI18n, type TKey } from "@/i18n";
 import { peekSettingsTarget } from "@/components/AppAlert";
 import {
   deleteProjectForever,
@@ -40,17 +42,18 @@ import {
  * Trash sections. Other nav items are placeholders.
  */
 
-type Section = "dashboard" | "recents" | "all" | "starred" | "trash" | "admin" | "mock";
+type Section = "dashboard" | "recents" | "all" | "starred" | "trash" | "admin" | "library" | "mock";
 
 /** Page title shown in the header bar for each Home section (dashboard has none;
  *  mock sections use their clicked label instead). */
-const HOME_TITLE: Record<Section, string> = {
+const HOME_TITLE: Record<Section, TKey | ""> = {
   dashboard: "",
-  recents: "Recientes",
-  all: "Todos los proyectos",
-  starred: "Favoritos",
-  trash: "Papelera",
-  admin: "Settings",
+  recents: "home.recents",
+  all: "home.all",
+  starred: "home.starred",
+  trash: "home.trash",
+  admin: "home.settings",
+  library: "dlib.title",
   mock: "",
 };
 
@@ -160,6 +163,7 @@ const ProjectCard = memo(function ProjectCard({ p, isStar, onOpen, onStar, onCon
 
 export function HomeShell({ onEnterStudio }: { onEnterStudio: () => void }) {
   const { switchProject, createProject } = useStore();
+  const { t } = useI18n();
   const [section, setSection] = useState<Section>("dashboard");
   // Jump straight to Settings when something requested it (connect-API modal).
   useEffect(() => {
@@ -260,19 +264,19 @@ export function HomeShell({ onEnterStudio }: { onEnterStudio: () => void }) {
 
         <div className="home__navsearch">
           <IconSearch size={15} />
-          <input placeholder="Buscar" value={query} onChange={(e) => setQuery(e.target.value)} />
+          <input placeholder={t("home.searchPlaceholder")} value={query} onChange={(e) => setQuery(e.target.value)} />
         </div>
 
         <nav className="home__navlist">
           <button className={`home__navitem ${section === "dashboard" ? "home__navitem--active" : ""}`} onClick={() => setSection("dashboard")}>
-            <IconHome size={18} /> Home
+            <IconHome size={18} /> {t("home.dashboard")}
           </button>
           <button className={`home__navitem ${section === "recents" ? "home__navitem--active" : ""}`} onClick={() => setSection("recents")}>
-            <IconClock size={18} /> Recents
+            <IconClock size={18} /> {t("home.recents")}
           </button>
           <button className="home__navitem" onClick={() => window.open("https://www.magnific.com/app/explore#from_element=mainmenu", "_blank", "noopener")}><IconUsers size={18} /> Community</button>
           <button className="home__navitem" onClick={() => window.open("https://www.magnific.com/stock#from_element=mainmenu", "_blank", "noopener")}><IconStack2 size={18} /> Stock</button>
-          <button className={`home__navitem ${section === "mock" && mockTitle === "Library" ? "home__navitem--active" : ""}`} onClick={() => openMock("Library")}><IconBook2 size={18} /> Library</button>
+          <button className={`home__navitem ${section === "library" ? "home__navitem--active" : ""}`} onClick={() => setSection("library")}><IconBook2 size={18} /> {t("home.library")}</button>
 
           <div className="home__sep" />
 
@@ -305,17 +309,17 @@ export function HomeShell({ onEnterStudio }: { onEnterStudio: () => void }) {
           </div>
           <button className={`home__navitem ${section === "mock" && mockTitle === "Drafts" ? "home__navitem--active" : ""}`} onClick={() => openMock("Drafts")}><IconFile size={18} /> Drafts</button>
           <button className={`home__navitem ${section === "all" ? "home__navitem--active" : ""}`} onClick={() => setSection("all")}>
-            <IconApps size={18} /> All projects
+            <IconApps size={18} /> {t("home.all")}
           </button>
           <button className={`home__navitem ${section === "mock" && mockTitle === "Resources" ? "home__navitem--active" : ""}`} onClick={() => openMock("Resources")}><IconLayoutBoardSplit size={18} /> Resources</button>
           <button className={`home__navitem ${section === "trash" ? "home__navitem--active" : ""}`} onClick={() => setSection("trash")}>
-            <IconTrash size={18} /> Trash
+            <IconTrash size={18} /> {t("home.trash")}
           </button>
-          <button className={`home__navitem ${section === "admin" ? "home__navitem--active" : ""}`} onClick={() => setSection("admin")}><IconSettings size={18} /> Settings</button>
+          <button className={`home__navitem ${section === "admin" ? "home__navitem--active" : ""}`} onClick={() => setSection("admin")}><IconSettings size={18} /> {t("home.settings")}</button>
 
           <div className="home__sep" />
 
-          <div className="home__starhead">Starred</div>
+          <div className="home__starhead">{t("home.starred")}</div>
           {starred.length === 0 ? (
             <p className="muted small home__starred-empty">Marca un proyecto con ★ para verlo aquí.</p>
           ) : (
@@ -332,11 +336,11 @@ export function HomeShell({ onEnterStudio }: { onEnterStudio: () => void }) {
         {section !== "dashboard" ? (
           <div className="home__headbar">
             <PageHead
-              title={section === "mock" ? mockTitle : HOME_TITLE[section]}
+              title={section === "mock" ? mockTitle : HOME_TITLE[section] ? t(HOME_TITLE[section] as TKey) : ""}
               action={
                 section === "all" ? (
                   <button className="action action--gen" onClick={newProject}>
-                    <IconPlus size={16} /> Nuevo proyecto
+                    <IconPlus size={16} /> {t("home.newProject")}
                   </button>
                 ) : undefined
               }
@@ -358,14 +362,14 @@ export function HomeShell({ onEnterStudio }: { onEnterStudio: () => void }) {
               </div>
               {filtered.length > 0 ? (
                 <section className="home__block">
-                  <div className="home__block-head"><strong>Recientes</strong></div>
+                  <div className="home__block-head"><strong>{t("home.recents")}</strong></div>
                   <div className="home__recents">{filtered.slice(0, 6).map(renderCard)}</div>
                 </section>
               ) : null}
               <section className="home__block">
                 <div className="home__block-head">
                   <strong>Proyectos</strong>
-                  <button className="icon-btn" title="Nuevo proyecto" onClick={newProject}><IconPlus size={16} /></button>
+                  <button className="icon-btn" title={t("home.newProject")} onClick={newProject}><IconPlus size={16} /></button>
                 </div>
                 {grid(filtered, "Aún no hay proyectos. Pulsa Create para empezar.")}
               </section>
@@ -417,6 +421,7 @@ export function HomeShell({ onEnterStudio }: { onEnterStudio: () => void }) {
           ) : null}
 
           {section === "admin" ? <SettingsPage /> : null}
+          {section === "library" ? <DashboardLibrary /> : null}
 
           {section === "mock" ? (
             <section className="home__block">

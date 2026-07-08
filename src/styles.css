@@ -1018,3 +1018,22 @@ code { background: var(--surface-2); border: 1px solid var(--border-1); border-r
 /* Help link under the API key field. */
 .settings-help-link { color: var(--emphasis-0); text-decoration: underline; }
 .settings-help-link:hover { color: var(--emphasis-2, #ff1a90); }
+
+/* --- Dashboard Library (browse a file's library without opening it) --- */
+.dlib { display: flex; flex-direction: column; gap: 14px; }
+.dlib__files { display: flex; flex-direction: column; gap: 8px; max-width: 560px; }
+.dlib__file {
+  display: flex; align-items: center; gap: 10px; padding: 12px 14px;
+  background: var(--panel-4); border: 1px solid var(--border-1);
+  border-radius: 12px; cursor: pointer; text-align: left; color: inherit;
+}
+.dlib__file:hover { background: var(--panel-6); }
+.dlib__filename { flex: 1; font-weight: 600; }
+.dlib__chip { width: 14px; height: 14px; border-radius: 4px; flex: none; }
+.dlib__project { display: flex; align-items: center; gap: 10px; font-size: 18px; }
+.dlib__grouptitle { display: flex; align-items: center; gap: 6px; font-size: 14px; margin: 6px 0; }
+.dlib__grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 12px; }
+.dlib__card { background: var(--panel-4); border: 1px solid var(--border-1); border-radius: 12px; overflow: hidden; }
+.dlib__img { width: 100%; aspect-ratio: 1; object-fit: cover; display: block; background: var(--panel-6); }
+.dlib__img--empty { display: flex; align-items: center; justify-content: center; color: var(--fg-2, #777); }
+.dlib__meta { display: flex; flex-direction: column; padding: 8px 10px; gap: 2px; }

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { IconArrowLeft, IconArrowRight, IconX } from "@tabler/icons-react";
+import { useI18n, type TKey } from "@/i18n";
 
 /**
  * First-run tutorial (§onboarding): a centered modal shown ONCE, right after
@@ -12,23 +13,13 @@ const SEEN_KEY = "magnific-studio:tour-seen";
 
 interface TourStep {
   image: string;
-  title: string;
-  body: string;
+  title: TKey;
+  body: TKey;
 }
 
 const STEPS: TourStep[] = [
-  {
-    image: "/tutorial-1.jpg",
-    title: "Conecta tus cuentas",
-    body:
-      "Ve a Ajustes y conecta tu cuenta de Magnific (OAuth) — la generación de imagen y vídeo usa tus créditos — y pega tu API key de Claude, que dirige la historia. Ninguna de las dos sale de tu sesión.",
-  },
-  {
-    image: "/tutorial-2.jpg",
-    title: "De la idea al corto",
-    body:
-      "Trabaja por fases: Historia → Guion → Storyboard → Producción → Entrega. Valida cada fase para desbloquear la siguiente; todo lo que generes se guarda en tu carpeta de trabajo.",
-  },
+  { image: "/tutorial-1.jpg", title: "tour.s1.title", body: "tour.s1.body" },
+  { image: "/tutorial-2.jpg", title: "tour.s2.title", body: "tour.s2.body" },
 ];
 
 function seen(): boolean {
@@ -50,6 +41,7 @@ function markSeen(): void {
 export function OnboardingTour() {
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState(0);
+  const { t } = useI18n();
 
   // Open once the workdir choice exists (i.e., right after that modal) and
   // the tour hasn't been seen. Poll cheaply: the choice is set milliseconds
@@ -86,19 +78,19 @@ export function OnboardingTour() {
   return (
     <div className="detail-modal" role="dialog" aria-modal="true">
       <div className="detail-modal__panel tour-modal" onClick={(e) => e.stopPropagation()}>
-        <button className="tour-modal__x" aria-label="Saltar tutorial" onClick={close}>
+        <button className="tour-modal__x" aria-label={t("tour.skip")} onClick={close}>
           <IconX size={16} />
         </button>
         <img className="tour-modal__img" src={s.image} alt="" />
-        <h3 className="tour-modal__title">{s.title}</h3>
-        <p className="tour-modal__body muted">{s.body}</p>
+        <h3 className="tour-modal__title">{t(s.title)}</h3>
+        <p className="tour-modal__body muted">{t(s.body)}</p>
         <div className="tour-modal__nav">
           <button
             className="action tour-modal__prev"
             style={{ visibility: step > 0 ? "visible" : "hidden" }}
             onClick={() => setStep((x) => Math.max(0, x - 1))}
           >
-            <IconArrowLeft size={15} /> Anterior
+            <IconArrowLeft size={15} /> {t("tour.prev")}
           </button>
           <div className="tour-modal__dots">
             {STEPS.map((_, i) => (
@@ -107,14 +99,14 @@ export function OnboardingTour() {
           </div>
           {last ? (
             <button className="action action--gen" onClick={close}>
-              Empezar a crear
+              {t("tour.start")}
             </button>
           ) : (
             <button
               className="action action--gen"
               onClick={() => setStep((x) => Math.min(STEPS.length - 1, x + 1))}
             >
-              Siguiente <IconArrowRight size={15} />
+              {t("tour.next")} <IconArrowRight size={15} />
             </button>
           )}
         </div>

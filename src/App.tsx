@@ -14,6 +14,7 @@ import { ActiveBlockContext } from "@/state/ActiveBlock";
 import { LeadSlotContext } from "@/state/LeadSlot";
 import { buildBlocks } from "@/blocks";
 import { config } from "@/config";
+import { t as tr, useI18n, type TKey } from "@/i18n";
 import type { PhaseId } from "@/types/project";
 import { Sidebar } from "@/components/Sidebar";
 import { GateButton } from "@/components/GateButton";
@@ -30,31 +31,13 @@ import { AppAlert } from "@/components/AppAlert";
 /** Per-phase header metadata (icon + description + the gate that unlocks next). */
 const PHASE_META: Record<
   PhaseId,
-  { icon: ComponentType<IconProps>; desc: string; gateLabel?: string }
+  { icon: ComponentType<IconProps>; desc: TKey; gateLabel?: TKey }
 > = {
-  story: {
-    icon: IconBook,
-    desc: "Desarrolla la narrativa, el estilo visual y las referencias. Claude propone personajes y entornos y genera su primera imagen con el estilo definido.",
-    gateLabel: "Historia lista → escribir guion",
-  },
-  script: {
-    icon: IconWriting,
-    desc: "Guion profesional, escena a escena.",
-    gateLabel: "Guion validado → generar storyboard",
-  },
-  storyboard: {
-    icon: IconLayoutGrid,
-    desc: "Grid de keyframes del corto completo. Aprueba cada plano para habilitar el gate.",
-    gateLabel: "Validar storyboard → ir a Producción",
-  },
-  production: {
-    icon: IconMovie,
-    desc: "Escena por escena, plano por plano. Cada plano es un job de vídeo con su coste y estado.",
-  },
-  delivery: {
-    icon: IconPackage,
-    desc: "Monta el corto con todos los assets y entrégalo.",
-  },
+  story: { icon: IconBook, desc: "phase.story.desc", gateLabel: "phase.story.gate" },
+  script: { icon: IconWriting, desc: "phase.script.desc", gateLabel: "phase.script.gate" },
+  storyboard: { icon: IconLayoutGrid, desc: "phase.storyboard.desc", gateLabel: "phase.storyboard.gate" },
+  production: { icon: IconMovie, desc: "phase.production.desc" },
+  delivery: { icon: IconPackage, desc: "phase.delivery.desc" },
 };
 
 /** Persistent prompt to connect Magnific when live generation needs a session. */
@@ -72,9 +55,9 @@ function ConnectionBanner() {
   return (
     <div className="conn-banner" role="status">
       <IconAlertTriangle size={16} />
-      <span>Conecta tu cuenta de Magnific para poder generar.</span>
+      <span>{tr("banner.connectMagnific")}</span>
       <a className="conn-banner__cta" href={`${config.directorBase}/auth/login`}>
-        Conectar mi cuenta
+        {tr("banner.connectCta")}
       </a>
     </div>
   );
@@ -91,11 +74,11 @@ function OAuthBanner() {
     const s = p.get("magnific");
     if (!s) return;
     if (s === "connected")
-      setInfo({ kind: "ok", text: "Cuenta de Magnific conectada. Ya puedes generar." });
+      setInfo({ kind: "ok", text: tr("banner.magnificConnected") });
     else if (s === "unconfigured")
-      setInfo({ kind: "warn", text: "El backend no tiene MAGNIFIC_MCP_URL configurado." });
+      setInfo({ kind: "warn", text: tr("banner.magnificUnconfigured") });
     else if (s === "error")
-      setInfo({ kind: "err", text: `No se pudo conectar a Magnific: ${p.get("detail") ?? "error"}` });
+      setInfo({ kind: "err", text: `${tr("banner.magnificError")} ${p.get("detail") ?? "error"}` });
     p.delete("magnific");
     p.delete("detail");
     const qs = p.toString();
@@ -118,6 +101,7 @@ function OAuthBanner() {
 
 export function App() {
   const store = useStore();
+  const { t } = useI18n();
   const [showLibrary, setShowLibrary] = useState(false);
   const [libraryFocus, setLibraryFocus] = useState<string | null>(null);
   // Slot in the page lead row where pages can portal controls (e.g. tabs).
@@ -205,8 +189,8 @@ export function App() {
   const headerTitle = showLibrary ? "Biblioteca" : activeBlock.label;
   const headerDesc = showLibrary
     ? "Personajes, entornos y estilo reutilizables para mantener la consistencia visual en todas las escenas. Créalos aquí antes de producir."
-    : meta.desc;
-  const gateLabel = showLibrary ? undefined : meta.gateLabel;
+    : t(meta.desc);
+  const gateLabel = showLibrary ? undefined : meta.gateLabel ? t(meta.gateLabel) : undefined;
 
   return (
     <ActiveBlockContext.Provider value={activeBlock}>

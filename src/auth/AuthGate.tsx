@@ -3,6 +3,7 @@ import { IconBrandGoogleFilled } from "@tabler/icons-react";
 import { BrandMark, Wordmark } from "./Brand";
 import type { User } from "firebase/auth";
 import { authEnabled, loginWithGoogle, watchAuth } from "./firebase";
+import { useI18n } from "@/i18n";
 
 /**
  * Blocks the app behind Google login when Firebase is configured (prod).
@@ -13,6 +14,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [checking, setChecking] = useState(authEnabled);
   const [error, setError] = useState<string | null>(null);
+  const { t } = useI18n();
 
   useEffect(() => {
     if (!authEnabled) return;
@@ -28,7 +30,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
       <div className="auth-gate">
         <div className="auth-gate__card">
           <BrandMark size={40} />
-          <p className="muted">Cargando…</p>
+          <p className="muted">{t("login.loading")}</p>
         </div>
       </div>
     );
@@ -41,11 +43,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
             <BrandMark size={52} />
             <Wordmark width={128} />
           </div>
-          <p className="muted">
-            Inicia sesión para usar el estudio. Tu contenido se guarda solo en
-            tu máquina (para esta versión alpha); conectarás tu propia cuenta
-            de Magnific y tu API key de Claude en Ajustes.
-          </p>
+          <p className="muted">{t("login.lead")}</p>
           <button
             className="action auth-gate__google"
             onClick={async () => {
@@ -57,7 +55,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
               }
             }}
           >
-            <IconBrandGoogleFilled size={16} /> Entrar con Google
+            <IconBrandGoogleFilled size={16} /> {t("login.google")}
           </button>
           {error ? <p className="auth-gate__err">{error}</p> : null}
         </div>
