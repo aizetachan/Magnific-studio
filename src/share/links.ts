@@ -152,6 +152,20 @@ export function watchMyPendingKnocks(cb: (ks: Knock[]) => void): () => void {
   });
 }
 
+/** Owner: live list of people I've APPROVED via link (any project). */
+export function watchApprovedKnocks(cb: (ks: Knock[]) => void): () => void {
+  const user = me();
+  if (!user) return () => {};
+  const q = query(
+    collection(firestore(), "knocks"),
+    where("ownerUid", "==", user.uid),
+    where("status", "==", "approved"),
+  );
+  return onQuerySnapshot(q, (snap) => {
+    cb(snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Knock, "id">) }) as Knock));
+  });
+}
+
 /** Owner approves: hands the room key to the requester. */
 export async function approveKnock(k: Knock, roomId: string): Promise<void> {
   await updateDoc(doc(firestore(), "knocks", k.id), { status: "approved", roomId });

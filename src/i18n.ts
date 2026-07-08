@@ -133,6 +133,8 @@ const STRINGS = {
     "join.invalidBody": "This link doesn't exist or was regenerated.",
     "user.collaborators": "Collaborators",
     "collab.empty": "No pending requests.",
+    "collab.access": "People with access",
+    "collab.accessTo": "has access to",
     "collab.wants": "wants to join",
     // Phases
     "phase.story.desc":
@@ -295,6 +297,8 @@ const STRINGS = {
     "join.invalidBody": "Este enlace no existe o fue regenerado.",
     "user.collaborators": "Colaboradores",
     "collab.empty": "No hay solicitudes pendientes.",
+    "collab.access": "Personas con acceso",
+    "collab.accessTo": "tiene acceso a",
     "collab.wants": "quiere entrar en",
     "phase.story.desc":
       "Desarrolla la narrativa, el estilo visual y las referencias. Claude propone personajes y entornos y genera su primera imagen con el estilo definido.",

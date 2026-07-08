@@ -15,7 +15,7 @@ import { me, shareEnabled } from "./db";
 import { sendInvite } from "./invites";
 import { getPresence, subscribePresence } from "./useShareSync";
 import { approveKnock, createLink, linkUrl, rejectKnock, type Knock } from "./links";
-import { useMyPendingKnocks } from "./useKnocks";
+import { useMyCollaborators, useMyPendingKnocks } from "./useKnocks";
 import { useI18n } from "@/i18n";
 
 function randomRoomId(): string {
@@ -93,6 +93,7 @@ export function ShareControls() {
 
   const knocks = useMyPendingKnocks();
   const fileKnocks = knocks.filter((k) => k.projectId === project.id);
+  const collaborators = useMyCollaborators().filter((c) => c.projectId === project.id);
 
   useEffect(() => {
     if (!copied) return;
@@ -176,6 +177,27 @@ export function ShareControls() {
                   <label className="card__label">{t("share.pending")}</label>
                   {fileKnocks.map((k) => (
                     <KnockRow key={k.id} k={k} roomId={project.share?.roomId} />
+                  ))}
+                </div>
+              ) : null}
+
+              {collaborators.length > 0 ? (
+                <div className="share-modal__section">
+                  <label className="card__label">{t("collab.access")}</label>
+                  {collaborators.map((c) => (
+                    <div className="knock" key={c.key}>
+                      {c.photo ? (
+                        <img className="knock__avatar" src={c.photo} alt="" referrerPolicy="no-referrer" />
+                      ) : (
+                        <span className="knock__avatar knock__avatar--initial">
+                          {(c.name || c.email).slice(0, 1).toUpperCase()}
+                        </span>
+                      )}
+                      <div className="knock__who">
+                        <strong>{c.name || c.email}</strong>
+                        <span className="muted small">{c.email}</span>
+                      </div>
+                    </div>
                   ))}
                 </div>
               ) : null}

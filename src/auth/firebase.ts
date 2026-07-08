@@ -29,6 +29,9 @@ const firebaseConfig = {
   authDomain: env.VITE_FIREBASE_AUTH_DOMAIN ?? "",
   projectId: env.VITE_FIREBASE_PROJECT_ID ?? "",
   appId: env.VITE_FIREBASE_APP_ID ?? "",
+  // Required by the Realtime Database (Share rooms). This module usually
+  // initializes the [DEFAULT] app first (login), so it MUST carry the URL.
+  databaseURL: env.VITE_FIREBASE_DATABASE_URL ?? "",
 };
 
 /** Whether Google login is configured (prod). False = open dev mode. */

@@ -9,6 +9,7 @@ import {
   deleteDoc,
   doc,
   getDocs,
+  onSnapshot,
   query,
   updateDoc,
   where,
@@ -57,6 +58,20 @@ export async function myInvites(): Promise<Invite[]> {
   );
   const snap = await getDocs(q);
   return snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Invite, "id">) }));
+}
+
+/** Live list of invites I sent that were accepted (people with access). */
+export function watchAcceptedInvites(cb: (is: Invite[]) => void): () => void {
+  const user = me();
+  if (!user) return () => {};
+  const q = query(
+    invitesCol(),
+    where("fromUid", "==", user.uid),
+    where("accepted", "==", true),
+  );
+  return onSnapshot(q, (snap) => {
+    cb(snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Invite, "id">) })));
+  });
 }
 
 export async function acceptInvite(id: string): Promise<void> {

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { IconLogout, IconUsersGroup, IconX } from "@tabler/icons-react";
 import type { User } from "firebase/auth";
 import { authEnabled, logout, watchAuth } from "./firebase";
-import { useMyPendingKnocks } from "@/share/useKnocks";
+import { useMyCollaborators, useMyPendingKnocks } from "@/share/useKnocks";
 import { KnockRow } from "@/share/ShareControls";
 import { loadProject } from "@/state/persistence";
 import { useI18n } from "@/i18n";
@@ -20,6 +20,7 @@ export function UserMenu() {
   const rootRef = useRef<HTMLDivElement>(null);
   const { t } = useI18n();
   const knocks = useMyPendingKnocks();
+  const collaborators = useMyCollaborators();
 
   useEffect(() => {
     if (!authEnabled) return;
@@ -92,18 +93,44 @@ export function UserMenu() {
               <IconUsersGroup size={18} style={{ verticalAlign: "-3px" }} /> {t("user.collaborators")}
             </h3>
             <div className="confirm-modal__msg">
-              {knocks.length === 0 ? (
+              {knocks.length > 0 ? (
+                <div className="share-modal__section">
+                  <label className="card__label">{t("share.pending")}</label>
+                  {knocks.map((k) => (
+                    <KnockRow
+                      key={k.id}
+                      k={k}
+                      roomId={loadProject(k.projectId)?.share?.roomId}
+                      showProject
+                    />
+                  ))}
+                </div>
+              ) : null}
+              {collaborators.length > 0 ? (
+                <div className="share-modal__section">
+                  <label className="card__label">{t("collab.access")}</label>
+                  {collaborators.map((c) => (
+                    <div className="knock" key={c.key}>
+                      {c.photo ? (
+                        <img className="knock__avatar" src={c.photo} alt="" referrerPolicy="no-referrer" />
+                      ) : (
+                        <span className="knock__avatar knock__avatar--initial">
+                          {(c.name || c.email).slice(0, 1).toUpperCase()}
+                        </span>
+                      )}
+                      <div className="knock__who">
+                        <strong>{c.name || c.email}</strong>
+                        <span className="muted small">
+                          {c.email} · {t("collab.accessTo")} <b>«{c.projectName}»</b>
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+              {knocks.length === 0 && collaborators.length === 0 ? (
                 <p className="muted">{t("collab.empty")}</p>
-              ) : (
-                knocks.map((k) => (
-                  <KnockRow
-                    key={k.id}
-                    k={k}
-                    roomId={loadProject(k.projectId)?.share?.roomId}
-                    showProject
-                  />
-                ))
-              )}
+              ) : null}
             </div>
             <div className="confirm-modal__actions">
               <button className="action" onClick={() => setShowCollab(false)}>

@@ -100,6 +100,7 @@ export function useShareSync(
     };
 
     void (async () => {
+      try {
       await room.join({ projectId: projectRef.current.id, ownerUid: share?.ownerUid ?? user.uid });
 
       // Catch-up: adopt the room snapshot when it's ahead of what we have.
@@ -149,6 +150,9 @@ export function useShareSync(
           });
         });
       });
+      } catch (e) {
+        console.error("[share] room join failed:", e);
+      }
     })();
 
     return () => {
