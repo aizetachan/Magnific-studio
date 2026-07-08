@@ -1,19 +1,25 @@
 import { useEffect, useRef, useState } from "react";
-import { IconLogout } from "@tabler/icons-react";
+import { IconLogout, IconUsersGroup, IconX } from "@tabler/icons-react";
 import type { User } from "firebase/auth";
 import { authEnabled, logout, watchAuth } from "./firebase";
+import { useMyPendingKnocks } from "@/share/useKnocks";
+import { KnockRow } from "@/share/ShareControls";
+import { loadProject } from "@/state/persistence";
 import { useI18n } from "@/i18n";
 
 /**
  * Signed-in user chip for the bottom of the dashboard sidebar: Google avatar
- * (or initial) + truncated name; clicking opens a small menu whose only
- * option (for now) is Log out. Hidden in dev mode (no Firebase auth).
+ * (or initial) + truncated name. A red badge signals pending join requests
+ * from ANY of your files; the menu offers Collaborators (approve/reject from
+ * the dashboard) and Log out.
  */
 export function UserMenu() {
   const [user, setUser] = useState<User | null>(null);
   const [open, setOpen] = useState(false);
+  const [showCollab, setShowCollab] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const { t } = useI18n();
+  const knocks = useMyPendingKnocks();
 
   useEffect(() => {
     if (!authEnabled) return;
@@ -41,6 +47,17 @@ export function UserMenu() {
             role="menuitem"
             onClick={() => {
               setOpen(false);
+              setShowCollab(true);
+            }}
+          >
+            <IconUsersGroup size={15} /> {t("user.collaborators")}
+            {knocks.length > 0 ? <span className="badge-dot badge-dot--inline">{knocks.length}</span> : null}
+          </button>
+          <button
+            className="usermenu__item"
+            role="menuitem"
+            onClick={() => {
+              setOpen(false);
               void logout();
             }}
           >
@@ -55,15 +72,47 @@ export function UserMenu() {
         aria-haspopup="menu"
         aria-expanded={open}
       >
-        {user.photoURL ? (
-          <img className="usermenu__avatar" src={user.photoURL} alt="" referrerPolicy="no-referrer" />
-        ) : (
-          <span className="usermenu__avatar usermenu__avatar--initial">
-            {name.slice(0, 1).toUpperCase()}
-          </span>
-        )}
+        <span className="usermenu__avatarwrap">
+          {user.photoURL ? (
+            <img className="usermenu__avatar" src={user.photoURL} alt="" referrerPolicy="no-referrer" />
+          ) : (
+            <span className="usermenu__avatar usermenu__avatar--initial">
+              {name.slice(0, 1).toUpperCase()}
+            </span>
+          )}
+          {knocks.length > 0 ? <span className="badge-dot">{knocks.length}</span> : null}
+        </span>
         <span className="usermenu__name">{name}</span>
       </button>
+
+      {showCollab ? (
+        <div className="detail-modal" role="dialog" aria-modal="true" onClick={() => setShowCollab(false)}>
+          <div className="detail-modal__panel confirm-modal share-modal" onClick={(e) => e.stopPropagation()}>
+            <h3 className="confirm-modal__title">
+              <IconUsersGroup size={18} style={{ verticalAlign: "-3px" }} /> {t("user.collaborators")}
+            </h3>
+            <div className="confirm-modal__msg">
+              {knocks.length === 0 ? (
+                <p className="muted">{t("collab.empty")}</p>
+              ) : (
+                knocks.map((k) => (
+                  <KnockRow
+                    key={k.id}
+                    k={k}
+                    roomId={loadProject(k.projectId)?.share?.roomId}
+                    showProject
+                  />
+                ))
+              )}
+            </div>
+            <div className="confirm-modal__actions">
+              <button className="action" onClick={() => setShowCollab(false)}>
+                <IconX size={14} /> {t("share.close")}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -27,6 +27,7 @@ import { clearUrlProject } from "@/state/persistence";
 import { ShareInbox } from "@/share/ShareInbox";
 import { OnboardingTour } from "@/components/OnboardingTour";
 import { AppAlert } from "@/components/AppAlert";
+import { JoinGate } from "@/share/JoinGate";
 
 /** Per-phase header metadata (icon + description + the gate that unlocks next). */
 const PHASE_META: Record<
@@ -179,6 +180,7 @@ export function App() {
         <OnboardingTour />
         <ShareInbox />
         <AppAlert />
+        <JoinGate />
         <HomeShell onEnterStudio={() => setView("studio")} />
       </>
     );
@@ -200,6 +202,7 @@ export function App() {
         <OnboardingTour />
         <ShareInbox />
         <AppAlert />
+        <JoinGate />
         <OAuthBanner />
         <ConnectionBanner />
         <Sidebar

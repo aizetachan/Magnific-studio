@@ -14,6 +14,33 @@ service cloud.firestore {
         && resource.data.toEmail == request.auth.token.email.lower()
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['accepted']);
     }
+    // Share links: resolvable by any signed-in user (capability token); only
+    // the owner manages them. In approval mode the doc carries NO room key.
+    match /links/{token} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null
+        && request.resource.data.ownerUid == request.auth.uid;
+      allow update, delete: if request.auth != null
+        && resource.data.ownerUid == request.auth.uid;
+    }
+
+    // Join requests ("knocks"): created by the requester (pending, no room
+    // key); only the owner can change status — approval writes the room key.
+    match /knocks/{id} {
+      allow create: if request.auth != null
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.status == "pending"
+        && !("roomId" in request.resource.data);
+      allow read: if request.auth != null
+        && (resource.data.uid == request.auth.uid
+            || resource.data.ownerUid == request.auth.uid);
+      allow update: if request.auth != null
+        && resource.data.ownerUid == request.auth.uid;
+      allow delete: if request.auth != null
+        && (resource.data.ownerUid == request.auth.uid
+            || resource.data.uid == request.auth.uid);
+    }
+
     match /{document=**} {
       allow read, write: if false;
     }
