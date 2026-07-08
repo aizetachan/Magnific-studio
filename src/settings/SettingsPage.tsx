@@ -156,7 +156,8 @@ export function SettingsPage() {
         [{ role: "user", content: "ping" }],
         () => "pong",
       );
-      setCredentials({ connectionTested: "ok" });
+      // Only ONE API can be connected: connecting Claude disconnects OpenAI.
+      setCredentials({ connectionTested: "ok", openaiApiKey: "", openaiTested: "untested" });
     } catch (e) {
       setConnError(e instanceof Error ? e.message : String(e));
       setCredentials({ connectionTested: "failed" });
@@ -181,7 +182,8 @@ export function SettingsPage() {
         () => "pong",
         16,
       );
-      setCredentials({ openaiTested: "ok" });
+      // Only ONE API can be connected: connecting OpenAI disconnects Claude.
+      setCredentials({ openaiTested: "ok", anthropicApiKey: "", connectionTested: "untested" });
     } catch (e) {
       setConnError(e instanceof Error ? e.message : String(e));
       setCredentials({ openaiTested: "failed" });
@@ -258,7 +260,7 @@ export function SettingsPage() {
                 </button>
               </div>
 
-              <label className="card__label">{tr("settings.apiKeyLabel")}</label>
+              <label className="card__label">{provider === "anthropic" ? tr("settings.apiKeyLabel") : tr("settings.apiKeyLabelOpenai")}</label>
               {provider === "anthropic" ? (
                 <input
                   type="password"

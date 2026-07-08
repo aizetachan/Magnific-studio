@@ -226,6 +226,7 @@ const STRINGS = {
     "settings.group.usage": "Usage",
     "settings.group.org": "Organization",
     "settings.apiKeyLabel": "Anthropic API (Claude)",
+    "settings.apiKeyLabelOpenai": "OpenAI API",
   },
   es: {
     "login.lead":
@@ -393,6 +394,7 @@ const STRINGS = {
     "settings.group.usage": "Uso",
     "settings.group.org": "Organización",
     "settings.apiKeyLabel": "API de Anthropic (Claude)",
+    "settings.apiKeyLabelOpenai": "API de OpenAI",
   },
 } as const;
 
