@@ -19,6 +19,8 @@ import {
   IconStarFilled,
   IconTrash,
   IconUsers,
+  IconMenu2,
+  IconLayoutGrid,
 } from "@tabler/icons-react";
 import { useStore } from "@/state/ProjectStore";
 import { PageHead } from "@/components/PageHead";
@@ -173,6 +175,8 @@ export function HomeShell({ onEnterStudio }: { onEnterStudio: () => void }) {
   // Critical-delete confirmations (single file or empty-all).
   const [toDelete, setToDelete] = useState<ProjectSummary | null>(null);
   const [emptyAll, setEmptyAll] = useState(false);
+  // Mobile chrome: bottom-sheet menu (hidden on desktop via CSS).
+  const [mobileMenu, setMobileMenu] = useState(false);
   const [section, setSection] = useState<Section>("dashboard");
   // Jump straight to Settings when something requested it (connect-API modal).
   useEffect(() => {
@@ -266,8 +270,23 @@ export function HomeShell({ onEnterStudio }: { onEnterStudio: () => void }) {
       <div className="home__files">{items.map(renderCard)}</div>
     );
 
+  const goSection = (sec: Section) => {
+    setSection(sec);
+    setMobileMenu(false);
+  };
+
   return (
     <div className="home">
+      {/* ---- Mobile top bar (symbol logo + avatar). Desktop: hidden. ---- */}
+      <header className="mh-top">
+        <span className="home__logo mh-top__logo" onClick={() => goSection("dashboard")}>
+          <svg viewBox="4 8 24 17" fill="none" aria-label="Magnific">
+            <path d="M18.4806 8L16.0805 13.862L13.6815 8H8.88124L4.08095 25C4.01661 25 10.0807 25 10.0807 25L16.0805 17.3789L22.0802 25C22.0802 25 28.1443 25 28.0799 25L23.2809 8H18.4806Z" fill="currentColor" />
+          </svg>
+        </span>
+        <UserMenu />
+      </header>
+
       <aside className="home__nav">
         <div className="home__brand">
           <span className="home__logo">
@@ -390,14 +409,18 @@ export function HomeShell({ onEnterStudio }: { onEnterStudio: () => void }) {
               </div>
               {filtered.length > 0 ? (
                 <section className="home__block">
-                  <div className="home__block-head"><strong>{t("home.recents")}</strong></div>
+                  <div className="home__block-head">
+                    <strong>{t("home.recents")}</strong>
+                    <button className="mh-viewall" onClick={() => goSection("recents")}>{t("home.viewAll")}</button>
+                  </div>
                   <div className="home__recents">{filtered.slice(0, 6).map(renderCard)}</div>
                 </section>
               ) : null}
               <section className="home__block">
                 <div className="home__block-head">
-                  <strong>Proyectos</strong>
-                  <button className="icon-btn" title={t("home.newProject")} onClick={newProject}><IconPlus size={16} /></button>
+                  <strong>{t("home.projects")}</strong>
+                  <button className="mh-viewall" onClick={() => goSection("all")}>{t("home.viewAll")}</button>
+                  <button className="icon-btn mh-hide" title={t("home.newProject")} onClick={newProject}><IconPlus size={16} /></button>
                 </div>
                 {grid(filtered, t("home.emptyTitle"), true)}
               </section>
@@ -509,6 +532,77 @@ export function HomeShell({ onEnterStudio }: { onEnterStudio: () => void }) {
           <button className="ctxmenu__item" disabled>Share</button>
           <div className="ctxmenu__sep" />
           <button className="ctxmenu__item ctxmenu__item--danger" onClick={() => { trashProject(ctx.id); bump(); setCtx(null); }}>Mover a la papelera</button>
+        </div>
+      ) : null}
+
+      {/* ---- Mobile bottom nav (fixed). Desktop: hidden. ---- */}
+      <nav className="mh-nav">
+        <button className={`mh-nav__item ${section === "dashboard" ? "mh-nav__item--on" : ""}`} onClick={() => goSection("dashboard")}>
+          <IconHome size={20} /><span>Home</span>
+        </button>
+        <button className={`mh-nav__item ${section === "recents" ? "mh-nav__item--on" : ""}`} onClick={() => goSection("recents")}>
+          <IconClock size={20} /><span>{t("home.recents")}</span>
+        </button>
+        <button className="mh-nav__fab" onClick={newProject} title={t("home.newProject")}>
+          <IconPlus size={24} />
+        </button>
+        <button className="mh-nav__item" onClick={() => window.open("https://www.magnific.com/app/explore#from_element=mainmenu", "_blank", "noopener")}>
+          <IconUsers size={20} /><span>{t("home.community")}</span>
+        </button>
+        <button className={`mh-nav__item ${mobileMenu ? "mh-nav__item--on" : ""}`} onClick={() => setMobileMenu(true)}>
+          <IconMenu2 size={20} /><span>{t("home.menu")}</span>
+        </button>
+      </nav>
+
+      {/* ---- Mobile menu bottom sheet ---- */}
+      {mobileMenu ? (
+        <div className="mh-sheet" onClick={() => setMobileMenu(false)}>
+          <div className="mh-sheet__panel" onClick={(e) => e.stopPropagation()}>
+            <div className="mh-sheet__handle" />
+            <div className="mh-sheet__team">
+              <span className="home__account-chip" style={{ background: projectColor(TEAMS[team].name) }} />
+              <div className="mh-sheet__teaminfo">
+                <strong>{TEAMS[team].name}</strong>
+                <span className={`home__badge home__badge--${planKey(TEAMS[team].plan)}`}>{TEAMS[team].plan}</span>
+              </div>
+              <IconChevronDown size={16} className="muted" onClick={() => setTeam((team + 1) % TEAMS.length)} />
+            </div>
+            <div className="mh-sheet__items">
+              <button className="mh-sheet__item" onClick={() => { window.open("https://www.magnific.com/stock#from_element=mainmenu", "_blank", "noopener"); setMobileMenu(false); }}>
+                <IconStack2 size={18} /> {t("home.stock")}
+              </button>
+              <button className="mh-sheet__item" onClick={() => goSection("library")}>
+                <IconBook2 size={18} /> {t("home.library")}
+              </button>
+              <button className="mh-sheet__item" onClick={() => { openMock("Drafts"); setMobileMenu(false); }}>
+                <IconFile size={18} /> {t("home.drafts")}
+              </button>
+              <button className="mh-sheet__item" onClick={() => goSection("all")}>
+                <IconLayoutGrid size={18} /> {t("home.all")}
+              </button>
+              <button className="mh-sheet__item mh-sheet__item--disabled" disabled>
+                <IconLayoutBoardSplit size={18} /> {t("home.resources")} <span className="home__soon">{t("common.soon")}</span>
+              </button>
+              <button className="mh-sheet__item" onClick={() => goSection("trash")}>
+                <IconTrash size={18} /> {t("home.trash")}
+              </button>
+              <button className="mh-sheet__item" onClick={() => goSection("admin")}>
+                <IconSettings size={18} /> {t("home.settings")}
+              </button>
+            </div>
+            <div className="mh-sheet__fav">
+              <span className="card__label">{t("home.starred")}</span>
+              {starred.length === 0 ? (
+                <p className="muted small">Marca un proyecto con ★ para verlo aquí.</p>
+              ) : (
+                starred.map((p) => (
+                  <button key={p.id} className="mh-sheet__item" onClick={() => { openProject(p.id); setMobileMenu(false); }}>
+                    <span className="psw__chip" style={{ background: projectColor(p.id), width: 18, height: 18 }} /> {p.name}
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
         </div>
       ) : null}
     </div>
