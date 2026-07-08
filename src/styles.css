@@ -1406,3 +1406,7 @@ code { background: var(--surface-2); border: 1px solid var(--border-1); border-r
 }
 .action--primary:hover:not(:disabled) { filter: brightness(1.08); }
 .settings__avatar--img { object-fit: cover; }
+
+/* Settings nav: coming-soon items are visible but not clickable. */
+.settings__navitem--soon { opacity: 0.55; cursor: default; }
+.settings__navitem--soon .home__soon { margin-left: auto; }

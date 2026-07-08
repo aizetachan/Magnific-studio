@@ -9,7 +9,6 @@ import {
   IconCreditCard,
   IconLock,
   IconShieldLock,
-  IconSparkles,
   IconUser,
   IconUsers,
   IconX,
@@ -51,7 +50,7 @@ const NAV: { group: TKey; items: { id: Sec; label: string; labelKey?: TKey; icon
     { id: "billing", label: "Plan & billing", icon: IconCreditCard, mock: true },
   ]},
   { group: "settings.group.connections", items: [
-    { id: "claude", label: "Claude (API)", labelKey: "settings.nav.claude", icon: IconSparkles },
+    { id: "claude", label: "API Keys", labelKey: "settings.nav.claude", icon: IconCode },
     { id: "magnific", label: "Magnific (MCP)", labelKey: "settings.nav.magnific", icon: IconBolt },
   ]},
   { group: "settings.group.usage", items: [
@@ -59,7 +58,6 @@ const NAV: { group: TKey; items: { id: Sec; label: string; labelKey?: TKey; icon
   ]},
   { group: "settings.group.org", items: [
     { id: "team", label: "My Team", icon: IconBuildingSkyscraper, mock: true },
-    { id: "apikeys", label: "API Keys", icon: IconCode, mock: true },
     { id: "sso", label: "Security SSO", icon: IconShieldLock, mock: true },
   ]},
 ];
@@ -208,12 +206,13 @@ export function SettingsPage() {
                 return (
                   <button
                     key={it.id}
-                    className={`settings__navitem ${section === it.id ? "is-on" : ""}`}
+                    className={`settings__navitem ${section === it.id ? "is-on" : ""} ${it.mock ? "settings__navitem--soon" : ""}`}
+                    disabled={it.mock}
                     onClick={() => setSection(it.id)}
                   >
                     <Icon size={16} />
                     <span>{it.labelKey ? tr(it.labelKey) : it.label}</span>
-                    {it.mock ? <span className="settings__soon">pronto</span> : null}
+                    {it.mock ? <span className="home__soon">{tr("common.soon")}</span> : null}
                   </button>
                 );
               })}
