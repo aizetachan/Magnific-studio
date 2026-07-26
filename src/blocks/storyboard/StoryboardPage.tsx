@@ -26,6 +26,7 @@ import {
 import { downloadAsset } from "@/state/download";
 import { newShot } from "@/state/seed";
 import { assignReferences } from "@/director/generate";
+import { AssetImg } from "@/components/AssetImg";
 import { runBatched, runShotGeneration } from "../runner";
 import { IconSparkles, IconWand } from "@tabler/icons-react";
 import type { Shot } from "@/types/project";
@@ -279,7 +280,16 @@ export function StoryboardPage() {
                   ))}
                 </select>
               </label>
-              <span className="muted small">Los personajes se asignan por plano (abajo en cada uno).</span>
+              {(() => {
+                const sel = libLocs.find((l) => l.id === scene.locationId);
+                return sel && !sel.magnificIdentifier ? (
+                  <span className="small refwarn" title="Sin la referencia, la imagen del plano se genera solo con texto">
+                    ⚠ «{sel.name}» aún no está en la Magnific Library — genera su imagen en Historia → Casting para que sirva de referencia.
+                  </span>
+                ) : (
+                  <span className="muted small">Los personajes se asignan por plano (abajo en cada uno).</span>
+                );
+              })()}
             </div>
           ) : null}
 
@@ -363,18 +373,20 @@ export function StoryboardPage() {
                       <div className="shot-refs__chars">
                         {libChars.map((c) => {
                           const on = (shot.characterIds ?? scene.characterIds ?? []).includes(c.id);
+                          const noRef = on && !c.magnificIdentifier;
                           return (
                             <button
                               key={c.id}
-                              className={`char-pick ${on ? "char-pick--on" : ""}`}
-                              title={c.name}
+                              className={`char-pick ${on ? "char-pick--on" : ""} ${noRef ? "char-pick--warn" : ""}`}
+                              title={noRef ? `${c.name} — aún no está en la Magnific Library: el plano se generará sin su referencia. Genera su imagen en Historia → Casting.` : c.name}
                               onClick={() => toggleShotChar(shot.id, scene.characterIds ?? [], c.id)}
                             >
-                              {c.thumbnailUrl ? (
-                                <img src={c.thumbnailUrl} alt={c.name} />
-                              ) : (
-                                <span className="char-pick__ph">{c.name.slice(0, 1)}</span>
-                              )}
+                              <AssetImg
+                                candidates={[c.thumbnailUrl ?? "", ...(c.images ?? [])]}
+                                projectId={project.id}
+                                alt={c.name}
+                                fallback={<span className="char-pick__ph">{c.name.slice(0, 1)}</span>}
+                              />
                             </button>
                           );
                         })}

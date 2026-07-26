@@ -326,6 +326,11 @@ interface ScriptJson {
  */
 export async function generateScript(api: StoreValue): Promise<void> {
   const { story } = api.project;
+  const lib = api.project.library ?? [];
+  const locs = lib.filter((a) => a.type === "location");
+  const styleText = api.project.styleId
+    ? lib.find((a) => a.id === api.project.styleId)?.prompt?.trim()
+    : undefined;
   const prompt = [
     "Eres guionista profesional. Escribe el guion de un cortometraje dividido en escenas.",
     "Recomienda tú el número de escenas y, por cada escena, sus planos (shots) según la acción.",
@@ -334,10 +339,18 @@ export async function generateScript(api: StoreValue): Promise<void> {
     `- Tono: ${story.tone || "libre"}`,
     `- Personajes: ${story.characters.map((c) => `${c.name}: ${c.description}`).join(" | ") || "inventa los necesarios"}`,
     `- Arcos: ${story.arcs.map((a) => `${a.title}: ${a.description}`).join(" | ") || "—"}`,
+    locs.length
+      ? `- Entornos DISPONIBLES (sitúa las escenas en ESTOS lugares siempre que encajen, usando su nombre en el heading): ${locs.map((l) => `${l.name}${l.description ? `: ${l.description}` : ""}`).join(" | ")}`
+      : "",
+    styleText
+      ? `- Estilo visual global del corto: ${styleText}\n  Escribe keyframePrompt y videoPrompt COHERENTES con ese estilo (no lo contradigas, p. ej. no pidas 'photorealistic' si el estilo es animación; no hace falta repetir el estilo, se aplica automáticamente al generar).`
+      : "",
     "Devuelve SOLO un JSON (sin texto extra):",
     '{"scenes":[{"heading":"INT. LUGAR — DÍA","action":"descripción de la acción","dialogue":"PERSONAJE: línea","durationSec":12,"shots":[{"description":"plano detalle de…","keyframePrompt":"cinematic English prompt for the still image","videoPrompt":"English prompt describing the motion","durationSec":5}]}]}',
     "Cada escena con 1-3 planos según la acción. heading, action y dialogue en español; keyframePrompt y videoPrompt en INGLÉS y cinematográficos.",
-  ].join("\n");
+  ]
+    .filter(Boolean)
+    .join("\n");
 
   const text = await askClaude(
     api,
@@ -518,18 +531,31 @@ export async function assignReferences(api: StoreValue): Promise<void> {
 /** Append N more scenes that continue the current script (does not reset). */
 export async function generateMoreScenes(api: StoreValue, n: number): Promise<void> {
   const { story, scenes: existing } = api.project;
+  const lib = api.project.library ?? [];
+  const locs = lib.filter((a) => a.type === "location");
+  const styleText = api.project.styleId
+    ? lib.find((a) => a.id === api.project.styleId)?.prompt?.trim()
+    : undefined;
   const prompt = [
     `Eres guionista. Añade ${n} escena(s) NUEVA(S) que continúen el guion existente, sin repetir.`,
     "Historia:",
     `- Logline: ${story.logline}`,
     `- Tono: ${story.tone}`,
     `- Arcos: ${story.arcs.map((a) => `${a.title}: ${a.description}`).join(" | ") || "—"}`,
+    locs.length
+      ? `- Entornos DISPONIBLES (sitúa las escenas en ESTOS lugares siempre que encajen, usando su nombre en el heading): ${locs.map((l) => `${l.name}${l.description ? `: ${l.description}` : ""}`).join(" | ")}`
+      : "",
+    styleText
+      ? `- Estilo visual global: escribe keyframePrompt/videoPrompt coherentes con este estilo (no lo contradigas): ${styleText}`
+      : "",
     "Escenas existentes (no las repitas):",
     existing.map((s) => `${s.number}. ${s.heading} — ${s.action}`).join("\n") || "(ninguna)",
     "Devuelve SOLO un JSON con exactamente las escenas nuevas:",
     '{"scenes":[{"heading":"INT. LUGAR — DÍA","action":"…","dialogue":"PERSONAJE: …","durationSec":12,"shots":[{"description":"…","keyframePrompt":"cinematic English prompt","videoPrompt":"English motion prompt","durationSec":5}]}]}',
     "heading/action/dialogue en español; keyframePrompt/videoPrompt en INGLÉS.",
-  ].join("\n");
+  ]
+    .filter(Boolean)
+    .join("\n");
 
   const text = await askClaude(api, genCtx("script"), [{ role: "user", content: prompt }], () => "", 4096);
   if (!text.trim()) throw new Error(NEED_KEY);

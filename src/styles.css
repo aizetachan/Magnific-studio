@@ -515,6 +515,9 @@ code { background: var(--surface-2); border: 1px solid var(--border-1); border-r
 .char-pick__ph { font-size: 12px; font-weight: 600; color: var(--fg-1); filter: grayscale(1); opacity: 0.8; }
 .char-pick--on .char-pick__ph { filter: none; opacity: 1; }
 .char-pick--reset { font-size: 15px; color: var(--fg-1); }
+/* Selected ref that is NOT in the Magnific Library yet (no consistency ref). */
+.char-pick--warn { box-shadow: 0 0 0 2px #d9a13b; }
+.refwarn { color: #d9a13b; }
 
 /* Per-scene reference assignment (Storyboard) */
 .scene-refs { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin: 4px 0 12px; padding: 8px 10px; border-radius: var(--radius-md, 8px); background: var(--bg-1, rgba(255,255,255,0.03)); }
