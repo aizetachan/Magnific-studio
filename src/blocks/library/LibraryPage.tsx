@@ -4,6 +4,7 @@ import { useStore } from "@/state/ProjectStore";
 import { config } from "@/config";
 import { uid } from "@/state/seed";
 import { AssetDetailModal, AssetImg } from "./AssetDetailModal";
+import { isJobRunning } from "@/blocks/runner";
 
 /**
  * Library (§ Historia) — dashboard-style grid grouped by type. Each card is
@@ -148,7 +149,7 @@ export function LibraryPage({ focusAssetId }: { focusAssetId?: string | null }) 
             <div className="dlib__grid">
               {assets.map((a) => {
                 const count = (a.images ?? (a.thumbnailUrl ? [a.thumbnailUrl] : [])).length;
-                const running = a.job?.status === "queued" || a.job?.status === "rendering";
+                const running = isJobRunning(a.job);
                 return (
                   <button className="dlib__card librarypage__card" key={a.id} onClick={() => setOpenAsset(a.id)}>
                     <div className="dlib__img">

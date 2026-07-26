@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { IconX } from "@tabler/icons-react";
+import { AssetImg } from "@/components/AssetImg";
 
 export interface RefDetailProps {
   kindLabel: string; // "Personaje" | "Entorno"
@@ -7,6 +8,9 @@ export interface RefDetailProps {
   description: string;
   prompt: string;
   imageUrl?: string;
+  /** Extra image urls/refs to try when imageUrl is dead (blob:/local: safe). */
+  imageCandidates?: string[];
+  projectId?: string;
   onName: (v: string) => void;
   onDescription: (v: string) => void;
   onPrompt: (v: string) => void;
@@ -24,6 +28,8 @@ export function RefDetailModal({
   description,
   prompt,
   imageUrl,
+  imageCandidates,
+  projectId,
   onName,
   onDescription,
   onPrompt,
@@ -47,8 +53,13 @@ export function RefDetailModal({
           </button>
         </div>
 
-        {imageUrl ? (
-          <img className="detail-modal__img" src={imageUrl} alt={name} />
+        {imageUrl || imageCandidates?.length ? (
+          <AssetImg
+            className="detail-modal__img"
+            candidates={[imageUrl ?? "", ...(imageCandidates ?? [])]}
+            projectId={projectId ?? ""}
+            alt={name}
+          />
         ) : null}
 
         <label className="card__label">Nombre</label>

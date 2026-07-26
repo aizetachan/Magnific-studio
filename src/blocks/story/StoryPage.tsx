@@ -18,6 +18,7 @@ import { OnboardingToast } from "@/components/OnboardingToast";
 import { JobBadge } from "@/components/JobBadge";
 import { AssetModal, type PreviewAsset } from "@/components/AssetModal";
 import { RefDetailModal } from "@/components/RefDetailModal";
+import { AssetImg } from "@/components/AssetImg";
 import { ConfirmModal } from "@/components/ConfirmModal";
 import {
   characterPrompt,
@@ -211,6 +212,8 @@ export function StoryPage() {
           description={c.description}
           prompt={a?.prompt ?? characterPrompt(c.name, c.description)}
           imageUrl={a?.thumbnailUrl}
+          imageCandidates={a?.images}
+          projectId={project.id}
           onName={(v) => setCharField(c.id, "name", v)}
           onDescription={(v) => setCharField(c.id, "description", v)}
           onPrompt={(v) =>
@@ -234,6 +237,8 @@ export function StoryPage() {
           description={a.description ?? ""}
           prompt={a.prompt ?? environmentPrompt(a.name, a.description ?? "")}
           imageUrl={a.thumbnailUrl}
+          imageCandidates={a.images}
+          projectId={project.id}
           onName={(v) => setEnvField(a.id, "name", v)}
           onDescription={(v) => setEnvField(a.id, "description", v)}
           onPrompt={(v) =>
@@ -386,11 +391,12 @@ export function StoryPage() {
               <div className="ref-row" key={c.id}>
                 <button className="ref-row__open" onClick={() => setDetail({ kind: "character", id: c.id })} title="Ver detalle del personaje">
                   <div className="ref-row__thumb">
-                    {a?.thumbnailUrl ? (
-                      <img src={a.thumbnailUrl} alt={c.name} />
-                    ) : (
-                      <span className="ref-row__ph"><IconPhoto size={18} /></span>
-                    )}
+                    <AssetImg
+                      candidates={[a?.thumbnailUrl ?? "", ...(a?.images ?? [])]}
+                      projectId={project.id}
+                      alt={c.name}
+                      fallback={<span className="ref-row__ph"><IconPhoto size={18} /></span>}
+                    />
                   </div>
                   <div className="ref-row__body">
                     <span className="row__title">{c.name || "Sin nombre"}</span>
@@ -446,11 +452,12 @@ export function StoryPage() {
               <div className="ref-row" key={a.id}>
                 <button className="ref-row__open" onClick={() => setDetail({ kind: "environment", id: a.id })} title="Ver detalle del entorno">
                   <div className="ref-row__thumb">
-                    {a.thumbnailUrl ? (
-                      <img src={a.thumbnailUrl} alt={a.name} />
-                    ) : (
-                      <span className="ref-row__ph"><IconPhoto size={18} /></span>
-                    )}
+                    <AssetImg
+                      candidates={[a.thumbnailUrl ?? "", ...(a.images ?? [])]}
+                      projectId={project.id}
+                      alt={a.name}
+                      fallback={<span className="ref-row__ph"><IconPhoto size={18} /></span>}
+                    />
                   </div>
                   <div className="ref-row__body">
                     <span className="row__title">{a.name || "Sin nombre"}</span>
