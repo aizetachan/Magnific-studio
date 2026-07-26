@@ -368,11 +368,26 @@ async function ensureClient(meta) {
   if (!clientReg && firestoreStoreAvailable()) {
     // Multi-instance (Cloud Run): all instances must use the SAME OAuth
     // client, or a code issued via instance A can't be exchanged by B.
-    try {
-      const shared = await fsGet("clientReg");
-      if (shared) clientReg = JSON.parse(shared);
-    } catch {
-      /* fall through to registering */
+    // CRITICAL: a Firestore READ FAILURE must never be treated as "no client
+    // yet" — re-registering overwrites the shared client and orphans every
+    // stored refresh_token ("Token client and authorized client don't match").
+    // fsGet returns null only when the doc genuinely doesn't exist.
+    let readError;
+    for (let attempt = 0; attempt < 3 && !clientReg; attempt++) {
+      try {
+        const shared = await fsGet("clientReg");
+        if (shared) clientReg = JSON.parse(shared);
+        readError = null;
+        break;
+      } catch (e) {
+        readError = e;
+        await new Promise((r) => setTimeout(r, 500 * (attempt + 1)));
+      }
+    }
+    if (!clientReg && readError) {
+      throw new Error(
+        `no se pudo leer el client OAuth compartido (${readError?.message ?? readError}); reintenta`,
+      );
     }
   }
   if (!clientReg) {
@@ -413,13 +428,28 @@ async function tokenFor(sid) {
   if (expired && t.refresh_token) {
     const meta = await ensureDiscovery();
     const client = await ensureClient(meta);
-    const refreshed = await refreshToken({
-      token_endpoint: meta.token_endpoint,
-      client_id: client.client_id,
-      client_secret: client.client_secret,
-      refresh_token: t.refresh_token,
-      resource: MCP_URL,
-    });
+    let refreshed;
+    try {
+      refreshed = await refreshToken({
+        token_endpoint: meta.token_endpoint,
+        client_id: client.client_id,
+        client_secret: client.client_secret,
+        refresh_token: t.refresh_token,
+        resource: MCP_URL,
+      });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      if (msg.includes("invalid_grant")) {
+        // The refresh token is unusable (revoked, or issued to a different
+        // OAuth client). Drop the dead session so the UI shows the clean
+        // "conecta tu cuenta" flow instead of a raw token 400.
+        console.warn(`[director] refresh invalid_grant -> desconectando sesión ${sid}`);
+        sessions.delete(sid);
+        persistSessions();
+        return MCP_STATIC_TOKEN || undefined;
+      }
+      throw e;
+    }
     storeTokens(sid, refreshed);
     return sessions.get(sid).tokens.access_token;
   }
