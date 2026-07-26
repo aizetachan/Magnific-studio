@@ -60,6 +60,8 @@ export interface Arc {
 
 export interface Story {
   logline: string;
+  /** The user's idea as it was BEFORE "Desarrollar" replaced it (restorable). */
+  ideaOriginal?: string;
   characters: Character[];
   arcs: Arc[];
   tone: string; // tono / género / referencias

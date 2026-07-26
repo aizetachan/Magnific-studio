@@ -1,7 +1,9 @@
 import { useContext, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import {
+  IconArrowBackUp,
   IconExternalLink,
+  IconGitFork,
   IconMountain,
   IconPhoto,
   IconPlus,
@@ -22,8 +24,10 @@ import { AssetImg } from "@/components/AssetImg";
 import { ConfirmModal } from "@/components/ConfirmModal";
 import {
   characterPrompt,
+  developIdea,
   environmentPrompt,
   generateStoryField,
+  improveIdea,
 } from "@/director/generate";
 import { generateAssetPreview, generateAssetPreviews } from "@/blocks/runner";
 import { uid } from "@/state/seed";
@@ -51,6 +55,7 @@ export function StoryPage() {
   const block = useActiveBlock();
   const s = project.story;
   const [busyField, setBusyField] = useState<Field | null>(null);
+  const [ideaBusy, setIdeaBusy] = useState<"improve" | "develop" | null>(null);
   const [previewing, setPreviewing] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [preview, setPreview] = useState<PreviewAsset | null>(null);
@@ -90,6 +95,27 @@ export function StoryPage() {
       setGenerating(false);
     }
   };
+
+  // Idea toolbar: improve the user's wording / develop it into a full premise.
+  const runIdeaTool = async (tool: "improve" | "develop") => {
+    if (ideaBusy) return;
+    setIdeaBusy(tool);
+    try {
+      await (tool === "improve" ? improveIdea(store) : developIdea(store));
+    } catch (e) {
+      showAppAlert(e instanceof Error ? e.message : String(e));
+    } finally {
+      setIdeaBusy(null);
+    }
+  };
+
+  const restoreIdea = () =>
+    update((d) => {
+      if (d.story.ideaOriginal) {
+        d.story.logline = d.story.ideaOriginal;
+        d.story.ideaOriginal = undefined;
+      }
+    });
 
   const addArc = (arc: { title: string; description: string }) =>
     update((d) => {
@@ -283,10 +309,25 @@ export function StoryPage() {
             <div className="card__listhead">
               <label className="card__label">Idea</label>
               <span className="kf__row" style={{ margin: 0 }}>
-                <RegenBtn field="logline" />
+                <button
+                  className="icon-btn"
+                  title="Desarrollar: Claude convierte tu idea en una premisa completa y bien redactada (fiel a la original)"
+                  disabled={ideaBusy !== null || generating}
+                  onClick={() => runIdeaTool("develop")}
+                >
+                  {ideaBusy === "develop" ? <span className="spin" /> : <IconGitFork size={15} />}
+                </button>
+                <button
+                  className="icon-btn"
+                  title="Mejorar redacción: misma idea, mejor escrita (no cambia el contenido)"
+                  disabled={ideaBusy !== null || generating}
+                  onClick={() => runIdeaTool("improve")}
+                >
+                  {ideaBusy === "improve" ? <span className="spin" /> : <IconSparkles size={15} />}
+                </button>
                 <button
                   className="action action--gen"
-                  disabled={generating || !developAction}
+                  disabled={generating || ideaBusy !== null || !developAction}
                   onClick={() => (hasGenerated ? setConfirmGen(true) : runDevelop())}
                 >
                   {generating ? <><span className="spin" /> Generando…</> : "Generar historia"}
@@ -294,6 +335,11 @@ export function StoryPage() {
               </span>
             </div>
             <LockableTextarea lockPath="story:logline" value={s.logline} onChange={(e) => update((d) => { d.story.logline = e.target.value; })} />
+            {s.ideaOriginal && s.ideaOriginal !== s.logline ? (
+              <button className="mini" style={{ alignSelf: "flex-start" }} onClick={restoreIdea} title={`Tu idea original: ${s.ideaOriginal}`}>
+                <IconArrowBackUp size={13} /> Volver a mi idea original
+              </button>
+            ) : null}
           </div>
 
           <div className="card" data-flash="style">
@@ -496,8 +542,9 @@ export function StoryPage() {
           title="Generar historia de nuevo"
           message={
             <>
-              Esto <b>sobrescribirá el contenido actual de esta página</b>: Idea,
-              Tono/género, Estilo visual, <b>Actores</b> y <b>Entornos</b> y Arcos.
+              Esto <b>sobrescribirá el contenido generado de esta página</b>:
+              Tono/género, Estilo visual, <b>Actores</b>, <b>Entornos</b> y Arcos.
+              Tu <b>Idea no se toca</b> — es la base de la nueva generación.
               ¿Quieres continuar?
             </>
           }
