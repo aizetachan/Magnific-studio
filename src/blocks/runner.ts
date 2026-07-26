@@ -127,6 +127,12 @@ export async function runShotGeneration(
   if (isKeyframe && styleAsset?.prompt?.trim()) {
     prompt = `${prompt}\n\nVisual style (apply consistently): ${styleAsset.prompt.trim()}`;
   }
+  // Tone/genre travels with EVERY shot generation (not only when the script
+  // was written), so isolated regenerations keep the film's mood.
+  const tone = project.story.tone.trim();
+  if (tone) {
+    prompt = `${prompt}\n\nTone/genre of the film (keep the mood consistent): ${tone}`;
+  }
 
   const libraryRefs: Array<{ type: "character" | "locations" | "style"; identifier: string; creationId?: string }> = [
     ...charRefs,
