@@ -69,9 +69,8 @@ export async function generateStory(api: StoreValue): Promise<void> {
   const prompt = [
     "Eres guionista y director de arte. Desarrolla la historia de un cortometraje.",
     idea
-      ? `Notas / idea de partida del usuario (úsalas como base y conviértelas en un logline pulido): ${idea}`
-      : "No hay idea de partida: inventa una breve, original y rodable.",
-    `Da una propuesta FRESCA y diferente a versiones anteriores (no repitas). Semilla de variación: ${nonce}`,
+      ? `IDEA DEL USUARIO (es el corazón del proyecto: desarróllala FIELMENTE, sin sustituirla por otra ni desviarte de ella): ${idea}`
+      : `No hay idea de partida: inventa una breve, original y rodable. Da una propuesta FRESCA y diferente a versiones anteriores (no repitas). Semilla de variación: ${nonce}`,
     "Define también un ESTILO VISUAL global (técnica, paleta, iluminación, referencias) que se",
     "aplicará a TODAS las imágenes para mantener consistencia, y los ENTORNOS clave.",
     "IMPORTANTE: para CADA personaje y CADA entorno escribe SIEMPRE una 'description' concreta y visual (1-2 frases). En personajes: aspecto físico, vestuario y rasgo de carácter. En entornos: el lugar, el ambiente y la iluminación. Esta descripción se usa como contexto para generar su imagen, así que debe ser específica y nunca quedar vacía.",
@@ -85,8 +84,9 @@ export async function generateStory(api: StoreValue): Promise<void> {
   const data = parseJson<StoryJson>(text);
 
   api.update((d) => {
-    // The Idea field holds the user's notes: turn them into a polished logline.
-    if (data.logline) d.story.logline = String(data.logline);
+    // The Idea field is the USER'S text — never overwrite it. When it was
+    // empty, adopt the invented logline so downstream phases have a base.
+    if (data.logline && !idea) d.story.logline = String(data.logline);
     if (data.tone) d.story.tone = String(data.tone);
     d.library = d.library ?? [];
 
@@ -175,6 +175,60 @@ export async function generateStory(api: StoreValue): Promise<void> {
     if (d.gates.story === "in_progress" || d.gates.story === "locked") {
       d.gates.story = "ready";
     }
+  });
+}
+
+/**
+ * IMPROVE the user's idea text in place: clearer, stronger wording with the
+ * SAME content and intent — the idea is the user's, only the prose changes.
+ */
+export async function improveIdea(api: StoreValue): Promise<void> {
+  const idea = api.project.story.logline.trim();
+  if (!idea) throw new Error("Escribe primero tu idea para poder mejorarla.");
+  const prompt = [
+    "Eres editor de textos para cine. MEJORA la redacción de la idea del usuario para un cortometraje:",
+    "claridad, fuerza y gramática. NO cambies su contenido, intención ni elementos — misma idea, mejor escrita.",
+    "Mantén una longitud similar y el idioma del usuario. No añadas tramas ni personajes nuevos.",
+    `Idea del usuario: ${idea}`,
+    'Devuelve SOLO un JSON: {"idea":"texto mejorado"}',
+  ].join("\n");
+  const text = await askClaude(api, genCtx("story"), [{ role: "user", content: prompt }], () => "");
+  if (!text.trim()) throw new Error(NEED_KEY);
+  const data = parseJson<{ idea?: string }>(text);
+  if (!data.idea) throw new Error("No se obtuvo una versión mejorada. Inténtalo de nuevo.");
+  api.update((d) => {
+    d.story.logline = String(data.idea);
+  });
+}
+
+/**
+ * DEVELOP the user's idea into a complete, well-written premise (setup,
+ * conflict, resolution in one paragraph), faithful to the original. The
+ * previous text is kept in story.ideaOriginal so the user can restore it.
+ */
+export async function developIdea(api: StoreValue): Promise<void> {
+  const idea = api.project.story.logline.trim();
+  if (!idea) throw new Error("Escribe primero tu idea para poder desarrollarla.");
+  const { story } = api.project;
+  const prompt = [
+    "Eres guionista. DESARROLLA la idea del usuario en una premisa completa y bien redactada para un cortometraje:",
+    "un único párrafo (4-7 frases) con planteamiento, conflicto y resolución.",
+    "Sé FIEL a la idea original: desarróllala, no la sustituyas por otra distinta.",
+    story.tone.trim() ? `Respeta este tono/género: ${story.tone.trim()}` : "",
+    `Idea del usuario: ${idea}`,
+    'Devuelve SOLO un JSON: {"idea":"premisa desarrollada"}',
+    "En el idioma del usuario.",
+  ]
+    .filter(Boolean)
+    .join("\n");
+  const text = await askClaude(api, genCtx("story"), [{ role: "user", content: prompt }], () => "");
+  if (!text.trim()) throw new Error(NEED_KEY);
+  const data = parseJson<{ idea?: string }>(text);
+  if (!data.idea) throw new Error("No se obtuvo la premisa desarrollada. Inténtalo de nuevo.");
+  api.update((d) => {
+    // Keep the FIRST original so chained develops stay restorable to the seed.
+    if (!d.story.ideaOriginal) d.story.ideaOriginal = idea;
+    d.story.logline = String(data.idea);
   });
 }
 
@@ -469,6 +523,7 @@ export async function generateMoreScenes(api: StoreValue, n: number): Promise<vo
     "Historia:",
     `- Logline: ${story.logline}`,
     `- Tono: ${story.tone}`,
+    `- Arcos: ${story.arcs.map((a) => `${a.title}: ${a.description}`).join(" | ") || "—"}`,
     "Escenas existentes (no las repitas):",
     existing.map((s) => `${s.number}. ${s.heading} — ${s.action}`).join("\n") || "(ninguna)",
     "Devuelve SOLO un JSON con exactamente las escenas nuevas:",
