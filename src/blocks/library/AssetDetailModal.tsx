@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import {
   IconBrush,
   IconWand,
@@ -15,6 +15,11 @@ import { useStore } from "@/state/ProjectStore";
 import { config } from "@/config";
 import { loadLocalBlob, loadProjectAssetBlob, storeAssetBlob } from "@/state/assets";
 import { deriveStyleGuidelines } from "@/director/vision";
+import { AssetImg } from "@/components/AssetImg";
+import { isJobRunning } from "@/blocks/runner";
+
+// Re-export: LibraryPage (and older imports) resolve AssetImg from this module.
+export { AssetImg } from "@/components/AssetImg";
 
 /**
  * Asset detail modal — EVERYTHING about a library asset happens here:
@@ -48,71 +53,6 @@ function jobAt(status: Job["status"], patch: Partial<Job> = {}): Job {
   };
 }
 
-/** Image that survives dead blob: urls — walks a candidate list on error. */
-export function AssetImg({
-  candidates,
-  projectId,
-  alt,
-  className,
-  onClick,
-}: {
-  candidates: string[];
-  projectId: string;
-  alt: string;
-  className?: string;
-  onClick?: () => void;
-}) {
-  const [idx, setIdx] = useState(0);
-  const [resolved, setResolved] = useState<string | null>(null);
-  const list = useMemo(() => candidates.filter(Boolean), [candidates.join("|")]);
-
-  useEffect(() => {
-    setIdx(0);
-    setResolved(null);
-  }, [list.join("|")]);
-
-  useEffect(() => {
-    const cur = list[idx];
-    if (!cur) return;
-    if (!cur.startsWith("local:")) {
-      setResolved(cur);
-      return;
-    }
-    // Unhydrated ref: resolve straight from the project's local folder (the
-    // same robust path the dashboard library uses).
-    let alive = true;
-    let url: string | null = null;
-    void (async () => {
-      const blob = (await loadLocalBlob(cur)) ?? (await loadProjectAssetBlob(projectId, cur.slice("local:".length)));
-      if (!alive) return;
-      if (blob) {
-        url = URL.createObjectURL(blob);
-        setResolved(url);
-      } else {
-        setIdx((i) => i + 1);
-      }
-    })();
-    return () => {
-      alive = false;
-      if (url) URL.revokeObjectURL(url);
-    };
-  }, [list, idx, projectId]);
-
-  if (!resolved) return null;
-  return (
-    <img
-      className={className}
-      src={resolved}
-      alt={alt}
-      onClick={onClick}
-      onError={() => {
-        setResolved(null);
-        setIdx((i) => i + 1);
-      }}
-    />
-  );
-}
-
 export function AssetDetailModal({ assetId, onClose }: { assetId: string; onClose: () => void }) {
   const { project, update, generation } = useStore();
   const asset = (project.library ?? []).find((a) => a.id === assetId);
@@ -131,7 +71,7 @@ export function AssetDetailModal({ assetId, onClose }: { assetId: string; onClos
   const images = asset.images ?? (asset.thumbnailUrl ? [asset.thumbnailUrl] : []);
   const creations = asset.creationIds ?? [];
   const free = Math.max(0, MAX_IMAGES - images.length);
-  const running = asset.job?.status === "queued" || asset.job?.status === "rendering";
+  const running = isJobRunning(asset.job);
 
   const mutate = (fn: (a: LibraryAsset) => void) =>
     update((d) => {

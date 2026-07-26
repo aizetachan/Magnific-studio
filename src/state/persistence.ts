@@ -62,6 +62,10 @@ function sanitize(p: Project): Project {
   for (const tr of safe.audio ?? []) {
     tr.job = settledOnly(tr.job);
   }
+  for (const a of safe.library ?? []) {
+    a.job = settledOnly(a.job);
+    a.sheetJob = settledOnly(a.sheetJob);
+  }
   safe.delivery.finalVideoJob = settledOnly(safe.delivery.finalVideoJob);
   return safe;
 }

@@ -32,6 +32,18 @@ function fmtEta(sec: number): string {
 export function JobBadge({ job, etaSec }: { job?: Job; etaSec?: number }) {
   const eta = useEta(job, etaSec);
   if (!job) return <span className="badge badge--idle">Sin generar</span>;
+  // A queued/rendering job with no updates for a while is dead (its generate()
+  // promise died, e.g. the tab closed) — say so instead of "casi listo" forever.
+  const stalled =
+    (job.status === "queued" || job.status === "rendering") &&
+    Date.now() - (job.updatedAt ?? job.createdAt ?? 0) > 3 * 60 * 1000;
+  if (stalled) {
+    return (
+      <span className="badge badge--failed" title="La generación se interrumpió. Vuelve a generar.">
+        Interrumpido
+      </span>
+    );
+  }
   return (
     <span
       className={`badge badge--${job.status}`}

@@ -64,6 +64,17 @@ function jobAt(now: number, partial: Partial<Job>): Job {
 type Field = "keyframe" | "video";
 
 /**
+ * Whether a job should block the UI as "in progress". Queued/rendering jobs
+ * with no updates for a while are dead (their generate() promise died — e.g.
+ * the tab that started them closed), so they must never block regeneration.
+ */
+export function isJobRunning(job?: Job): boolean {
+  if (!job) return false;
+  if (job.status !== "queued" && job.status !== "rendering") return false;
+  return Date.now() - (job.updatedAt ?? job.createdAt ?? 0) < 3 * 60 * 1000;
+}
+
+/**
  * Run a shot generation end to end: preflight -> queued -> rendering -> ready,
  * routed through the dual GenerationBlock, with credits metered on settle.
  * This is the single path both Storyboard (keyframe) and Production (video) use.
@@ -359,10 +370,11 @@ async function generateOneAssetPreview(api: RunnerApi, assetId: string, styleTex
 
   let result;
   try {
-    result = await api.generation.generate({ kind: "image", prompt, model: "auto", assetHint: `biblioteca_${slugify(asset.name)}_sheet` }, ({ progress, status }) => {
+    result = await api.generation.generate({ kind: "image", prompt, model: "auto", assetHint: `biblioteca_${slugify(asset.name)}_sheet` }, ({ progress, status, jobId }) => {
       api.update((d) => {
         const j = d.library?.find((x) => x.id === assetId)?.job;
         if (!j || j.status === "ready" || j.status === "failed") return;
+        if (jobId) j.backendJobId = jobId; // persisted → resume after reload
         j.status = status === "ready" ? "rendering" : status;
         j.progress = Math.max(j.progress, Math.min(99, progress));
         j.updatedAt = Date.now();
@@ -451,10 +463,11 @@ export async function generateAssetSheet(api: RunnerApi, assetId: string): Promi
 
   let result;
   try {
-    result = await api.generation.generate({ kind: "image", prompt, model: "auto", assetHint: `biblioteca_${slugify(asset.name)}_sheet` }, ({ progress, status }) => {
+    result = await api.generation.generate({ kind: "image", prompt, model: "auto", assetHint: `biblioteca_${slugify(asset.name)}_sheet` }, ({ progress, status, jobId }) => {
       api.update((d) => {
         const j = d.library?.find((x) => x.id === assetId)?.sheetJob;
         if (!j || j.status === "ready" || j.status === "failed") return;
+        if (jobId) j.backendJobId = jobId; // persisted → resume after reload
         j.status = status === "ready" ? "rendering" : status;
         j.progress = Math.max(j.progress, Math.min(99, progress));
         j.updatedAt = Date.now();
@@ -521,6 +534,29 @@ export async function generateAssetPreviews(
  * closed; here we poll /mcp-status to pull the finished result into the project.
  */
 export function reconcileInflight(api: RunnerApi): void {
+  // A job that reached persistence while "queued"/"rendering" WITHOUT a backend
+  // id can never resume (its generate() promise died with the old tab) — mark it
+  // failed so the UI never stays stuck on "En cola" and regenerating is obvious.
+  const failStale = (j?: Job): void => {
+    if (!j) return;
+    if (j.status !== "queued" && j.status !== "rendering") return;
+    if (j.status === "rendering" && j.backendJobId) return; // resumable below
+    j.status = "failed";
+    j.error = "Generación interrumpida (se cerró la app). Vuelve a generar.";
+    j.updatedAt = Date.now();
+  };
+  api.update((d) => {
+    for (const s of d.shots) {
+      failStale(s.keyframeJob);
+      failStale(s.videoJob);
+    }
+    for (const tr of d.audio ?? []) failStale(tr.job);
+    for (const a of d.library ?? []) {
+      failStale(a.job);
+      failStale(a.sheetJob);
+    }
+  });
+
   for (const shot of api.project.shots) {
     if (shot.keyframeJob?.status === "rendering" && shot.keyframeJob.backendJobId) {
       void resumePoll(api, shot.id, "keyframe", shot.keyframeJob.backendJobId);
@@ -533,6 +569,93 @@ export function reconcileInflight(api: RunnerApi): void {
     if (tr.job?.status === "rendering" && tr.job.backendJobId) {
       void resumePollAudio(api, tr.id, tr.job.backendJobId);
     }
+  }
+  for (const a of api.project.library ?? []) {
+    if (a.job?.status === "rendering" && a.job.backendJobId) {
+      void resumePollAsset(api, a.id, "job", a.job.backendJobId);
+    }
+    if (a.sheetJob?.status === "rendering" && a.sheetJob.backendJobId) {
+      void resumePollAsset(api, a.id, "sheetJob", a.sheetJob.backendJobId);
+    }
+  }
+}
+
+/**
+ * Resume an in-flight Library asset image after reload (casting previews and
+ * character sheets). On success it applies the same mutations as the original
+ * flow: preview → reset the reference set to the new cover; sheet → append.
+ */
+async function resumePollAsset(
+  api: RunnerApi,
+  assetId: string,
+  field: "job" | "sheetJob",
+  backendJobId: string,
+): Promise<void> {
+  const deadline = Date.now() + 20 * 60 * 1000;
+  while (Date.now() < deadline) {
+    let data: { status?: string; progress?: number; resultUrl?: string; identifier?: string; error?: string };
+    try {
+      const res = await fetch(`${config.directorBase}/mcp-status?job=${encodeURIComponent(backendJobId)}`, {
+        credentials: "include",
+      });
+      if (!res.ok) {
+        await sleep(2500);
+        continue;
+      }
+      data = await res.json();
+    } catch {
+      await sleep(2500);
+      continue;
+    }
+    if (data.status === "ready") {
+      // Local-first: store the bytes on the user's machine, use the blob: URL.
+      const rAsset = api.project.library?.find((x) => x.id === assetId);
+      const hint = `biblioteca_${slugify(rAsset?.name ?? "asset")}_${backendJobId.slice(-6)}`;
+      const localUrl = data.resultUrl
+        ? await materializeAsset(hint, absDirectorUrl(data.resultUrl))
+        : undefined;
+      api.update((d) => {
+        const a = d.library?.find((x) => x.id === assetId);
+        const j = a?.[field];
+        if (!a || !j) return;
+        j.status = "ready";
+        j.progress = 100;
+        j.resultUrl = localUrl;
+        j.taskId = data.identifier ?? j.taskId;
+        j.updatedAt = Date.now();
+        if (!localUrl) return;
+        if (field === "job") {
+          // Cover image. Reset the reference set to this single image.
+          a.thumbnailUrl = localUrl;
+          a.images = [localUrl];
+          a.creationIds = data.identifier ? [data.identifier] : [];
+        } else {
+          a.images = [...(a.images ?? []), localUrl];
+          if (data.identifier) a.creationIds = [...(a.creationIds ?? []), data.identifier];
+        }
+      });
+      const asset = api.project.library?.find((x) => x.id === assetId);
+      if (asset && (asset.type === "character" || asset.type === "location")) {
+        await saveAssetToLibrary(api, assetId);
+      }
+      return;
+    }
+    if (data.status === "failed") {
+      api.update((d) => {
+        const j = d.library?.find((x) => x.id === assetId)?.[field];
+        if (j) {
+          j.status = "failed";
+          j.error = data.error;
+          j.updatedAt = Date.now();
+        }
+      });
+      return;
+    }
+    api.update((d) => {
+      const j = d.library?.find((x) => x.id === assetId)?.[field];
+      if (j && j.status === "rendering") j.progress = Math.max(j.progress, Math.min(99, data.progress ?? 10));
+    });
+    await sleep(2500);
   }
 }
 
