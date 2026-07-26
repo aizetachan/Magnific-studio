@@ -1489,13 +1489,26 @@ code { background: var(--surface-2); border: 1px solid var(--border-1); border-r
 .amodal__mainimg { width: 100%; height: 100%; object-fit: contain; display: block; }
 .amodal__placeholder { width: 100%; height: 100%; display: grid; place-items: center; color: var(--fg-4, #555); font-size: 13px; }
 .amodal__queue { position: absolute; left: 10px; right: 10px; bottom: 10px; }
-.amodal__slots { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
+.amodal__pct {
+  position: absolute; right: 12px; bottom: 20px; font-size: 12px; font-weight: 600;
+  color: #fff; text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+}
+.amodal__slots { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; }
 .amodal__slot {
-  aspect-ratio: 1; border-radius: 10px; overflow: hidden; background: var(--panel-6);
+  position: relative; aspect-ratio: 1; border-radius: 10px; overflow: hidden; background: var(--panel-6);
   border: 1px solid var(--border-1); cursor: pointer; padding: 0; display: grid; place-items: center;
 }
 .amodal__slot:hover { border-color: var(--emphasis-0, #ff58ae); }
-.amodal__slotimg { width: 100%; height: 100%; object-fit: cover; }
+.amodal__slot--principal { border-color: var(--emphasis-0, #ff58ae); box-shadow: 0 0 0 1px var(--emphasis-0, #ff58ae) inset; }
+.amodal__slotimg { width: 100%; height: 100%; object-fit: cover; cursor: pointer; }
+.amodal__slot__del {
+  position: absolute; top: 4px; right: 4px; width: 22px; height: 22px;
+  display: grid; place-items: center; border: none; border-radius: 6px;
+  background: rgba(0, 0, 0, 0.6); color: #fff; cursor: pointer;
+  opacity: 0; transition: opacity 0.12s;
+}
+.amodal__slot:hover .amodal__slot__del { opacity: 1; }
+.amodal__slot__del:hover { background: rgba(190, 40, 40, 0.9); }
 .amodal__slot--free { border-style: dashed; color: var(--fg-4, #555); font-size: 18px; cursor: default; }
 .amodal__slot--free:hover { border-color: var(--border-1); }
 .amodal__prompt { min-height: 64px; }

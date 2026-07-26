@@ -79,6 +79,14 @@ export function AssetDetailModal({ assetId, onClose }: { assetId: string; onClos
       if (a) fn(a);
     });
 
+  // Global visual style (Historia): applied to every generation from this
+  // modal (except on the style asset itself) so the whole cast stays aligned.
+  const globalStyle = !isStyle && project.styleId
+    ? (project.library ?? []).find((x) => x.id === project.styleId)?.prompt?.trim()
+    : undefined;
+  const withStyle = (p: string) =>
+    globalStyle ? `${p}\n\nVisual style (apply consistently): ${globalStyle}` : p;
+
   /** AUTOMATIC Magnific registration: edit the existing entry when we have
    * its numeric id, create it otherwise. Fire-and-forget; style is local. */
   const syncMagnific = async () => {
@@ -165,7 +173,7 @@ export function AssetDetailModal({ assetId, onClose }: { assetId: string; onClos
       a.job = jobAt("queued");
     });
     try {
-      const result = await track("nueva", p);
+      const result = await track("nueva", withStyle(p));
       mutate((a) => {
         a.job = jobAt(result.ok ? "ready" : "failed", {
           progress: 100,
@@ -209,7 +217,7 @@ export function AssetDetailModal({ assetId, onClose }: { assetId: string; onClos
       const result = await generation.generate(
         {
           kind: "image",
-          prompt: p,
+          prompt: withStyle(p),
           model: "auto",
           assetHint: `biblioteca_${asset.name}_edit`,
           references: refCreation ? [refCreation] : undefined,
@@ -268,7 +276,7 @@ export function AssetDetailModal({ assetId, onClose }: { assetId: string; onClos
           a.job = jobAt("queued");
         });
         const p = `${base}. ${isStyle ? "variación del estilo" : poses[slot % poses.length]}, mismo ${asset.type === "location" ? "entorno" : "personaje"}, consistencia total`;
-        const result = await track(`pose${slot}`, p);
+        const result = await track(`pose${slot}`, withStyle(p));
         mutate((a) => {
           a.job = jobAt(result.ok ? "ready" : "failed", {
             progress: 100,
@@ -345,6 +353,20 @@ export function AssetDetailModal({ assetId, onClose }: { assetId: string; onClos
     } finally {
       setBusy(null);
     }
+  };
+
+  /** Delete ONE reference image (any slot, the principal included). */
+  const removeImage = (i: number) => {
+    mutate((a) => {
+      const imgs = [...(a.images ?? (a.thumbnailUrl ? [a.thumbnailUrl] : []))];
+      const cids = [...(a.creationIds ?? [])];
+      imgs.splice(i, 1);
+      cids.splice(i, 1);
+      a.images = imgs;
+      a.creationIds = cids;
+      a.thumbnailUrl = imgs[0];
+    });
+    void syncMagnific();
   };
 
   /** Promote a mini to principal (swap; the set itself doesn't change). */
@@ -462,23 +484,42 @@ export function AssetDetailModal({ assetId, onClose }: { assetId: string; onClos
           {images[0] ? (
             <AssetImg candidates={[images[0], asset.thumbnailUrl ?? ""]} projectId={project.id} alt={asset.name} className="amodal__mainimg" />
           ) : (
-            <div className="amodal__placeholder">sin imagen</div>
+            <div className="amodal__placeholder">
+              {running ? `Generando… ${asset.job?.progress ?? 5}%` : "sin imagen"}
+            </div>
           )}
           {running ? (
-            <div className="queue amodal__queue">
-              <div className="queue__bar" style={{ width: `${asset.job?.progress ?? 5}%` }} />
-            </div>
+            <>
+              {images[0] ? (
+                <span className="amodal__pct">{asset.job?.progress ?? 5}%</span>
+              ) : null}
+              <div className="queue amodal__queue">
+                <div className="queue__bar" style={{ width: `${asset.job?.progress ?? 5}%` }} />
+              </div>
+            </>
           ) : null}
         </div>
 
-        {/* Slots row: minis + free holes */}
+        {/* Slots row: EVERY reference image (principal highlighted) + free holes.
+            Hover a mini for its delete button; click a non-principal to promote. */}
         <div className="amodal__slots">
-          {images.slice(1).map((img, i) => (
-            <button className="amodal__slot" key={`${i}_${img.slice(-18)}`} title="Usar como principal" onClick={() => promote(i + 1)}>
-              <AssetImg candidates={[img]} projectId={project.id} alt="" className="amodal__slotimg" />
-            </button>
+          {images.map((img, i) => (
+            <div
+              className={`amodal__slot${i === 0 ? " amodal__slot--principal" : ""}`}
+              key={`${i}_${img.slice(-18)}`}
+              title={i === 0 ? "Imagen principal" : "Usar como principal"}
+            >
+              <AssetImg candidates={[img]} projectId={project.id} alt="" className="amodal__slotimg" onClick={() => promote(i)} />
+              <button
+                className="amodal__slot__del"
+                title="Eliminar esta imagen"
+                onClick={() => removeImage(i)}
+              >
+                <IconTrash size={13} />
+              </button>
+            </div>
           ))}
-          {Array.from({ length: free && images.length ? free : Math.max(0, MAX_IMAGES - Math.max(images.length, 1)) }).map((_, i) => (
+          {Array.from({ length: Math.max(0, MAX_IMAGES - images.length) }).map((_, i) => (
             <div className="amodal__slot amodal__slot--free" key={`free_${i}`} title="Hueco libre: las nuevas generaciones aparecen aquí">
               +
             </div>
