@@ -62,6 +62,8 @@ export function StoryPage() {
   // Which reference (character/environment) detail modal is open.
   const [detail, setDetail] = useState<{ kind: "character" | "environment"; id: string } | null>(null);
   const [tab, setTab] = useState<"idea" | "casting">("idea");
+  // Right-column switcher (Estilo visual / Arcos) — both are tall, they share space.
+  const [sideTab, setSideTab] = useState<"style" | "arcs">("style");
   const [confirmGen, setConfirmGen] = useState(false);
   const leadSlot = useContext(LeadSlotContext);
 
@@ -303,11 +305,11 @@ export function StoryPage() {
         : null}
 
       {tab === "idea" ? (
-      <div className="story-cols">
-        <div className="story-col">
-          <div className="card" data-flash="logline">
+      <div className="idea-layout">
+        {/* HERO: the user's idea is the heart — everything else feeds it. */}
+          <div className="card idea-hero" data-flash="logline">
             <div className="card__listhead">
-              <label className="card__label">Idea</label>
+              <label className="card__label idea-hero__label"><IconSparkles size={15} /> Idea</label>
               <span className="kf__row" style={{ margin: 0 }}>
                 <button
                   className="icon-btn"
@@ -334,7 +336,7 @@ export function StoryPage() {
                 </button>
               </span>
             </div>
-            <LockableTextarea lockPath="story:logline" value={s.logline} onChange={(e) => update((d) => { d.story.logline = e.target.value; })} />
+            <LockableTextarea lockPath="story:logline" className="idea-hero__text" placeholder="Escribe aquí tu idea: es el corazón del corto. Todo lo demás la nutre." value={s.logline} onChange={(e) => update((d) => { d.story.logline = e.target.value; })} />
             {s.ideaOriginal && s.ideaOriginal !== s.logline ? (
               <button className="mini" style={{ alignSelf: "flex-start" }} onClick={restoreIdea} title={`Tu idea original: ${s.ideaOriginal}`}>
                 <IconArrowBackUp size={13} /> Volver a mi idea original
@@ -342,36 +344,11 @@ export function StoryPage() {
             ) : null}
           </div>
 
-          <div className="card" data-flash="style">
-            <div className="card__listhead">
-              <label className="card__label"><IconSparkles size={15} /> Estilo visual (global)</label>
-            </div>
-            <p className="muted small">
-              Se aplica a TODAS las imágenes (personajes, entornos y planos) para mantener
-              la consistencia visual.
-            </p>
-            <LockableTextarea
-              lockPath="story:style"
-              placeholder="Define el estilo: técnica, paleta, iluminación, referencias…"
-              value={styleAsset?.prompt ?? ""}
-              onChange={(e) =>
-                update((d) => {
-                  d.library = d.library ?? [];
-                  let a = d.styleId ? d.library.find((x) => x.id === d.styleId) : undefined;
-                  if (!a) {
-                    a = { id: uid("asset"), type: "style", name: "Estilo del corto", prompt: "", createdAt: Date.now() };
-                    d.library.push(a);
-                    d.styleId = a.id;
-                  }
-                  a.prompt = e.target.value;
-                })
-              }
-            />
-          </div>
-        </div>
-
-        <div className="story-col">
-          <div className="card" data-flash="tone">
+        {/* SIDE: second-level blocks that FEED the idea. Tone is short and
+            stays visible; Style and Arcs (both tall) share a switcher. */}
+        <div className="idea-side">
+          <span className="idea-side__hint muted small">Nutren tu idea</span>
+          <div className="card idea-side__tone" data-flash="tone">
             <div className="card__listhead">
               <label className="card__label">Tono / género / referencias</label>
               <RegenBtn field="tone" />
@@ -379,27 +356,60 @@ export function StoryPage() {
             <LockableTextarea lockPath="story:tone" value={s.tone} onChange={(e) => update((d) => { d.story.tone = e.target.value; })} />
           </div>
 
-          <div className="card card--list">
+          <div className={`card idea-side__switch ${sideTab === "arcs" ? "card--list" : ""}`} data-flash={sideTab === "style" ? "style" : undefined}>
             <div className="card__listhead">
-              <label className="card__label">Arcos narrativos</label>
-              <span className="kf__row" style={{ margin: 0 }}>
-                <RegenBtn field="arcs" />
-                <button className="mini" onClick={() => update((d) => { d.story.arcs.push({ id: uid("arc"), title: "Nuevo arco", description: "" }); })}>+ Añadir</button>
-              </span>
+              <div className="seg">
+                <button className={`seg__btn ${sideTab === "style" ? "is-on" : ""}`} onClick={() => setSideTab("style")}>Estilo visual</button>
+                <button className={`seg__btn ${sideTab === "arcs" ? "is-on" : ""}`} onClick={() => setSideTab("arcs")}>Arcos</button>
+              </div>
+              {sideTab === "arcs" ? (
+                <span className="kf__row" style={{ margin: 0 }}>
+                  <RegenBtn field="arcs" />
+                  <button className="mini" onClick={() => update((d) => { d.story.arcs.push({ id: uid("arc"), title: "Nuevo arco", description: "" }); })}>+ Añadir</button>
+                </span>
+              ) : null}
             </div>
-            {s.arcs.length === 0
-              ? STANDARD_ARCS.map((arc) => (
-                  <button className="row row--empty" key={arc.title} title="Añadir este arco a tu historia" onClick={() => addArc(arc)}>
-                    <span className="row__title">{arc.title}</span>
-                    <span className="row__desc">{arc.description}</span>
-                  </button>
-                ))
-              : s.arcs.map((a) => (
-                  <div className="row" key={a.id}>
-                    <LockableInput lockPath={`arc:${a.id}:title`} className="row__title" value={a.title} onChange={(e) => update((d) => { const t = d.story.arcs.find((x) => x.id === a.id)!; t.title = e.target.value; })} />
-                    <LockableInput lockPath={`arc:${a.id}:desc`} className="row__desc" value={a.description} placeholder="Descripción" onChange={(e) => update((d) => { const t = d.story.arcs.find((x) => x.id === a.id)!; t.description = e.target.value; })} />
-                  </div>
-                ))}
+            {sideTab === "style" ? (
+              <>
+                <p className="muted small">
+                  Se aplica a TODAS las imágenes (personajes, entornos y planos) para mantener
+                  la consistencia visual.
+                </p>
+                <LockableTextarea
+                  lockPath="story:style"
+                  placeholder="Define el estilo: técnica, paleta, iluminación, referencias…"
+                  value={styleAsset?.prompt ?? ""}
+                  onChange={(e) =>
+                    update((d) => {
+                      d.library = d.library ?? [];
+                      let a = d.styleId ? d.library.find((x) => x.id === d.styleId) : undefined;
+                      if (!a) {
+                        a = { id: uid("asset"), type: "style", name: "Estilo del corto", prompt: "", createdAt: Date.now() };
+                        d.library.push(a);
+                        d.styleId = a.id;
+                      }
+                      a.prompt = e.target.value;
+                    })
+                  }
+                />
+              </>
+            ) : (
+              <div className="idea-side__arcs">
+                {s.arcs.length === 0
+                  ? STANDARD_ARCS.map((arc) => (
+                      <button className="row row--empty" key={arc.title} title="Añadir este arco a tu historia" onClick={() => addArc(arc)}>
+                        <span className="row__title">{arc.title}</span>
+                        <span className="row__desc">{arc.description}</span>
+                      </button>
+                    ))
+                  : s.arcs.map((a) => (
+                      <div className="row" key={a.id}>
+                        <LockableInput lockPath={`arc:${a.id}:title`} className="row__title" value={a.title} onChange={(e) => update((d) => { const t = d.story.arcs.find((x) => x.id === a.id)!; t.title = e.target.value; })} />
+                        <LockableInput lockPath={`arc:${a.id}:desc`} className="row__desc" value={a.description} placeholder="Descripción" onChange={(e) => update((d) => { const t = d.story.arcs.find((x) => x.id === a.id)!; t.description = e.target.value; })} />
+                      </div>
+                    ))}
+              </div>
+            )}
           </div>
         </div>
       </div>
