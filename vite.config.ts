@@ -18,6 +18,15 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins: [react()],
+    build: {
+      rollupOptions: {
+        // Two apps: Studio (index.html) and Production (production.html).
+        input: {
+          main: fileURLToPath(new URL("./index.html", import.meta.url)),
+          production: fileURLToPath(new URL("./production.html", import.meta.url)),
+        },
+      },
+    },
     resolve: {
       alias: {
         "@": fileURLToPath(new URL("./src", import.meta.url)),
